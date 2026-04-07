@@ -198,7 +198,7 @@ function DangerSection() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800">
             <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-800">
               <h2 className="text-sm font-semibold text-red-400 flex items-center gap-2">

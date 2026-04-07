@@ -52,7 +52,7 @@ function CreateGroupModal({ open, onClose, onCreate }) {
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
       <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-neutral-800 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
           <h2 className="font-semibold text-white text-lg">Create Group</h2>

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
-import { useAuth } from "../contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
+import { authApi } from "@/services/api";
+import { toast } from "react-toastify";
+
 
 const Pupil = ({ 
   size = 12, 
@@ -26,15 +28,21 @@ const Pupil = ({
       setMouseX(e.clientX);
       setMouseY(e.clientY);
     };
+
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
   }, []);
 
   const calculatePupilPosition = () => {
     if (!pupilRef.current) return { x: 0, y: 0 };
+
     if (forceLookX !== undefined && forceLookY !== undefined) {
       return { x: forceLookX, y: forceLookY };
     }
+
     const pupil = pupilRef.current.getBoundingClientRect();
     const pupilCenterX = pupil.left + pupil.width / 2;
     const pupilCenterY = pupil.top + pupil.height / 2;
@@ -67,6 +75,7 @@ const Pupil = ({
   );
 };
 
+
 const EyeBall = ({ 
   size = 48, 
   pupilSize = 16, 
@@ -86,15 +95,21 @@ const EyeBall = ({
       setMouseX(e.clientX);
       setMouseY(e.clientY);
     };
+
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
   }, []);
 
   const calculatePupilPosition = () => {
     if (!eyeRef.current) return { x: 0, y: 0 };
+
     if (forceLookX !== undefined && forceLookY !== undefined) {
       return { x: forceLookX, y: forceLookY };
     }
+
     const eye = eyeRef.current.getBoundingClientRect();
     const eyeCenterX = eye.left + eye.width / 2;
     const eyeCenterY = eye.top + eye.height / 2;
@@ -139,17 +154,14 @@ const EyeBall = ({
   );
 };
 
-export default function RegisterPage() {
+
+function AnimatedCharactersLogin() {
   const navigate = useNavigate();
-  const { register } = useAuth();
-  
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
   const [mouseX, setMouseX] = useState(0);
   const [mouseY, setMouseY] = useState(0);
   const [isPurpleBlinking, setIsPurpleBlinking] = useState(false);
@@ -157,7 +169,6 @@ export default function RegisterPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false);
   const [isPurplePeeking, setIsPurplePeeking] = useState(false);
-  
   const purpleRef = useRef(null);
   const blackRef = useRef(null);
   const yellowRef = useRef(null);
@@ -168,12 +179,14 @@ export default function RegisterPage() {
       setMouseX(e.clientX);
       setMouseY(e.clientY);
     };
+
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
   useEffect(() => {
     const getRandomBlinkInterval = () => Math.random() * 4000 + 3000;
+
     const scheduleBlink = () => {
       const blinkTimeout = setTimeout(() => {
         setIsPurpleBlinking(true);
@@ -182,14 +195,17 @@ export default function RegisterPage() {
           scheduleBlink();
         }, 150);
       }, getRandomBlinkInterval());
+
       return blinkTimeout;
     };
+
     const timeout = scheduleBlink();
     return () => clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
     const getRandomBlinkInterval = () => Math.random() * 4000 + 3000;
+
     const scheduleBlink = () => {
       const blinkTimeout = setTimeout(() => {
         setIsBlackBlinking(true);
@@ -198,8 +214,10 @@ export default function RegisterPage() {
           scheduleBlink();
         }, 150);
       }, getRandomBlinkInterval());
+
       return blinkTimeout;
     };
+
     const timeout = scheduleBlink();
     return () => clearTimeout(timeout);
   }, []);
@@ -227,6 +245,7 @@ export default function RegisterPage() {
         }, Math.random() * 3000 + 2000);
         return peekInterval;
       };
+
       const firstPeek = schedulePeek();
       return () => clearTimeout(firstPeek);
     } else {
@@ -235,15 +254,20 @@ export default function RegisterPage() {
   }, [password, showPassword, isPurplePeeking]);
 
   const calculatePosition = (ref) => {
-    if (!ref.current) return { faceX: 0, faceY: 0, bodySkew: 0 };
+    if (!ref.current) return { faceX: 0, faceY: 0, bodyRotation: 0 };
+
     const rect = ref.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 3;
+
     const deltaX = mouseX - centerX;
     const deltaY = mouseY - centerY;
+
     const faceX = Math.max(-15, Math.min(15, deltaX / 20));
     const faceY = Math.max(-10, Math.min(10, deltaY / 30));
+
     const bodySkew = Math.max(-6, Math.min(6, -deltaX / 120));
+
     return { faceX, faceY, bodySkew };
   };
 
@@ -256,26 +280,28 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
+
     try {
-      await register(username, email, password);
-      toast.success('Account created successfully!');
-      navigate('/', { replace: true });
+      const response = await authApi.login({ email, password });
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+        toast.success("Login successful!");
+        navigate("/chat");
+      }
     } catch (err) {
-      const validationErrors = err?.response?.data?.errors;
-      const message = validationErrors?.[0]?.msg || err?.response?.data?.message || 'Registration failed.';
-      setError(message);
+      setError(err.response?.data?.message || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background dark text-foreground">
+    <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left Content Section */}
-      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-[#e6e6e6] p-12 text-black">
+      <div className="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700 p-12 text-white">
         <div className="relative z-20">
-          <div className="flex items-center gap-2 text-lg font-semibold cursor-pointer" onClick={() => navigate('/')}>
-            <div className="size-8 rounded-lg bg-black/5 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <div className="size-8 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center">
               <Sparkles className="size-4" />
             </div>
             <span>ConvoX</span>
@@ -285,7 +311,7 @@ export default function RegisterPage() {
         <div className="relative z-20 flex items-end justify-center h-[500px]">
           {/* Cartoon Characters */}
           <div className="relative" style={{ width: '550px', height: '400px' }}>
-            {/* Purple tall rectangle character - Back layer */}
+            {/* Purple tall rectangle character */}
             <div 
               ref={purpleRef}
               className="absolute bottom-0 transition-all duration-700 ease-in-out"
@@ -304,7 +330,6 @@ export default function RegisterPage() {
                 transformOrigin: 'bottom center',
               }}
             >
-              {/* Eyes */}
               <div 
                 className="absolute flex gap-8 transition-all duration-700 ease-in-out"
                 style={{
@@ -335,7 +360,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Black tall rectangle character - Middle layer */}
+            {/* Black tall rectangle character */}
             <div 
               ref={blackRef}
               className="absolute bottom-0 transition-all duration-700 ease-in-out"
@@ -356,7 +381,6 @@ export default function RegisterPage() {
                 transformOrigin: 'bottom center',
               }}
             >
-              {/* Eyes */}
               <div 
                 className="absolute flex gap-6 transition-all duration-700 ease-in-out"
                 style={{
@@ -387,7 +411,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Orange semi-circle character - Front left */}
+            {/* Orange semi-circle character */}
             <div 
               ref={orangeRef}
               className="absolute bottom-0 transition-all duration-700 ease-in-out"
@@ -402,7 +426,6 @@ export default function RegisterPage() {
                 transformOrigin: 'bottom center',
               }}
             >
-              {/* Eyes - just pupils, no white */}
               <div 
                 className="absolute flex gap-8 transition-all duration-200 ease-out"
                 style={{
@@ -415,7 +438,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Yellow tall rectangle character - Front right */}
+            {/* Yellow tall rectangle character */}
             <div 
               ref={yellowRef}
               className="absolute bottom-0 transition-all duration-700 ease-in-out"
@@ -430,7 +453,6 @@ export default function RegisterPage() {
                 transformOrigin: 'bottom center',
               }}
             >
-              {/* Eyes - just pupils, no white */}
               <div 
                 className="absolute flex gap-6 transition-all duration-200 ease-out"
                 style={{
@@ -441,7 +463,6 @@ export default function RegisterPage() {
                 <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
                 <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
               </div>
-              {/* Horizontal line for mouth */}
               <div 
                 className="absolute w-20 h-[4px] bg-[#2D2D2D] rounded-full transition-all duration-200 ease-out"
                 style={{
@@ -453,70 +474,54 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="relative z-20 flex flex-col gap-4 text-sm text-black/60">
-          <p className="text-black/80 font-medium text-lg leading-snug max-w-sm">
-            "Join ConvoX today and experience messaging exactly how it was meant to be—fast, expressive, and fun."
-          </p>
+        <div className="relative z-20 flex items-center gap-8 text-sm text-white/70">
+          <a href="#" className="hover:text-white transition-colors">
+            Privacy Policy
+          </a>
+          <a href="#" className="hover:text-white transition-colors">
+            Terms of Service
+          </a>
         </div>
 
-        {/* Decorative elements */}
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1432251407527-504a6b4174a2.avif')] bg-cover bg-center opacity-10 mix-blend-overlay" />
-        <div className="absolute top-1/4 right-1/4 size-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
+        <div className="absolute top-1/4 right-1/4 size-64 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/4 size-96 bg-white/5 rounded-full blur-3xl" />
       </div>
 
       {/* Right Login Section */}
-      <div className="flex items-center justify-center p-8 bg-neutral-950 text-neutral-50 relative z-10 w-full">
+      <div className="flex items-center justify-center p-8 bg-gray-900">
         <div className="w-full max-w-[420px]">
-          {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 text-lg font-semibold mb-12">
-            <div className="size-8 rounded-lg bg-violet-600/20 flex items-center justify-center">
-              <Sparkles className="size-4 text-violet-500" />
+            <div className="size-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <Sparkles className="size-4 text-white" />
             </div>
-            <span>ConvoX</span>
+            <span className="text-white">ConvoX</span>
           </div>
 
-          {/* Header */}
           <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">Create an account</h1>
-            <p className="text-neutral-400 text-sm">Enter your details to get started</p>
+            <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">Welcome back!</h1>
+            <p className="text-gray-400 text-sm">Please enter your details</p>
           </div>
 
-          {/* Signup Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium text-neutral-200">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="chat_wizard"
-                value={username}
-                autoComplete="username"
-                onChange={(e) => setUsername(e.target.value)}
-                onFocus={() => setIsTyping(true)}
-                onBlur={() => setIsTyping(false)}
-                required
-                className="h-12 bg-neutral-900 border-neutral-800 text-white focus-visible:ring-[#e6e6e6] focus-visible:border-[#e6e6e6]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-neutral-200">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="hello@example.com"
+                placeholder="your@email.com"
                 value={email}
-                autoComplete="email"
+                autoComplete="off"
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setIsTyping(true)}
                 onBlur={() => setIsTyping(false)}
                 required
-                className="h-12 bg-neutral-900 border-neutral-800 text-white focus-visible:ring-[#e6e6e6] focus-visible:border-[#e6e6e6]"
+                className="h-12 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-600 focus:ring-blue-600"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-neutral-200">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -524,14 +529,13 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
                   required
-                  className="h-12 pr-10 bg-neutral-900 border-neutral-800 text-white focus-visible:ring-[#e6e6e6] focus-visible:border-[#e6e6e6]"
+                  className="h-12 pr-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-600 focus:ring-blue-600"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="size-5" />
@@ -542,40 +546,55 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox id="remember" />
+                <Label
+                  htmlFor="remember"
+                  className="text-sm font-normal cursor-pointer text-gray-300"
+                >
+                  Remember for 30 days
+                </Label>
+              </div>
+              <a
+                href="#"
+                className="text-sm text-blue-400 hover:underline font-medium"
+              >
+                Forgot password?
+              </a>
+            </div>
+
             {error && (
-              <div className="p-3 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg">
+              <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg">
                 {error}
               </div>
             )}
 
             <Button 
               type="submit" 
-              className="w-full h-12 text-base font-medium bg-[#e6e6e6] hover:bg-[#d4d4d4] text-black transition-all" 
+              className="w-full h-12 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white" 
               size="lg" 
               disabled={isLoading}
             >
-              {isLoading ? "Creating account..." : "Sign up"}
+              {isLoading ? "Signing in..." : "Log in"}
             </Button>
           </form>
 
-          {/* Social Signup */}
           <div className="mt-6">
             <Button 
               variant="outline" 
-              className="w-full h-12 bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+              className="w-full h-12 bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
               type="button"
-              onClick={() => toast.info('Google Sign-Up coming soon!')}
             >
               <Mail className="mr-2 size-5" />
-              Sign up with Google
+              Log in with Google
             </Button>
           </div>
 
-          {/* Login Link */}
-          <div className="text-center text-sm text-neutral-500 mt-8">
-            Already have an account?{" "}
-            <a onClick={(e) => { e.preventDefault(); navigate('/login'); }} href="/login" className="text-[#e6e6e6] font-medium hover:text-white hover:underline cursor-pointer">
-              Log in
+          <div className="text-center text-sm text-gray-400 mt-8">
+            Don't have an account?{" "}
+            <a href="/register" className="text-blue-400 font-medium hover:underline">
+              Sign Up
             </a>
           </div>
         </div>
@@ -583,3 +602,5 @@ export default function RegisterPage() {
     </div>
   );
 }
+
+export default AnimatedCharactersLogin;

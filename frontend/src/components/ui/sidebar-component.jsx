@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/useAuth";
-import { GlassFilter } from "./liquid-glass";
+
 import DashboardView from "../views/DashboardView";
 import SettingsView from "../views/SettingsView";
 import MediaView from "../views/MediaView";
@@ -1253,13 +1253,9 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
   const leftPosition = sidebarCollapsed ? "left-44" : "left-108";
   return (
     <div
-      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-white/[0.07] px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-neutral-800 bg-neutral-950 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
       style={{
         transitionTimingFunction: softSpringEasing,
-        background: "rgba(8, 8, 12, 0.65)",
-        backdropFilter: "blur(24px) saturate(200%)",
-        WebkitBackdropFilter: "blur(24px) saturate(200%)",
-        boxShadow: "0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07), inset 1px 1.5px 0px rgba(255,255,255,0.1), inset -1px -1px 0px rgba(255,255,255,0.04)",
       }}
     >
       {activeSection === "chats" ? (
@@ -1306,15 +1302,8 @@ function TwoLevelSidebar() {
     setSelectedSettingsPage(null);
   };
   return (
-    <div
-      className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative"
-      style={{
-        background: "url(/photo-1432251407527-504a6b4174a2.avif) center",
-        animation: "60s linear 0s infinite normal running moveBackground"
-      }}
-    >
-      <GlassFilter />
-      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-white/[0.07]">
+    <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-black">
+      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-neutral-800">
         <IconNavigation activeSection={activeSection} onSectionChange={handleSectionChange} />
         <DetailSidebar 
           activeSection={activeSection} 
