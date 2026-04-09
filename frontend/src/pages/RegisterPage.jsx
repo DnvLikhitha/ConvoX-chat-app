@@ -574,7 +574,7 @@ export default function RegisterPage() {
           {/* Login Link */}
           <div className="text-center text-sm text-neutral-500 mt-8">
             Already have an account?{" "}
-            <a onClick={(e) => { e.preventDefault(); navigate('/login'); }} href="/login" className="text-[#e6e6e6] font-medium hover:text-white hover:underline cursor-pointer">
+            <a onClick={(e) => { e.preventDefault(); navigate('/login'); }} href="/login" className="text-[#e6e6e6] font-medium hover:text-[#f5f5f5] hover:underline cursor-pointer transition-colors">
               Log in
             </a>
           </div>

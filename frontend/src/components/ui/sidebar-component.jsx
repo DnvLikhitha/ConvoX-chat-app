@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/useAuth";
+import { useSidebar } from "../../contexts/SidebarContext";
 
 import DashboardView from "../views/DashboardView";
 import SettingsView from "../views/SettingsView";
@@ -13,8 +14,10 @@ import { Input } from "./input";
 import {
   Search as SearchIcon,
   Dashboard,
+  Chat,
   Task,
   Folder,
+  Document,
   Calendar as CalendarIcon,
   UserMultiple,
   Analytics,
@@ -249,6 +252,127 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
     </div>
   );
 }
+/* ------------------------------ Groups List ----------------------------- */
+function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, onSelectGroup }) {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { user } = useAuth();
+  
+  React.useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("chat_token");
+        
+        if (!token) {
+          setError("Not authenticated. Please login first.");
+          setGroups([]);
+          setLoading(false);
+          return;
+        }
+        
+        const response = await fetch("http://localhost:5000/api/chats", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const groupChats = (data.data?.chats || []).filter(chat => chat.chatType === 'group');
+        setGroups(groupChats);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching groups:", err);
+        setError(err.message);
+        setGroups([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (activeSection === "groups") {
+      fetchGroups();
+    }
+  }, [activeSection]);
+  
+  const filteredGroups = groups.filter(group =>
+    group.chatName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  if (activeSection !== "groups") return null;
+  
+  // Collapsed view
+  if (isCollapsed) {
+    return (
+      <div className="w-full flex flex-col items-center gap-2">
+        <div className="font-['Lexend:Regular',_sans-serif] text-[11px] text-neutral-400 text-center">
+          {filteredGroups.length} {filteredGroups.length === 1 ? "group" : "groups"}
+        </div>
+      </div>
+    );
+  }
+  
+  // Expanded view with list
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <div className="px-4 py-2">
+        <div className="font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-400">
+          {loading ? "Loading..." : `${filteredGroups.length} ${filteredGroups.length === 1 ? "group" : "groups"}`}
+        </div>
+      </div>
+      
+      {error && (
+        <div className="px-4 py-2">
+          <div className="font-['Lexend:Regular',_sans-serif] text-[12px] text-red-400">
+            Error: {error}
+          </div>
+        </div>
+      )}
+      
+      {!loading && filteredGroups.length === 0 && !error && (
+        <div className="px-4 py-2">
+          <div className="font-['Lexend:Regular',_sans-serif] text-[12px] text-neutral-500">
+            No groups found. Create your first group!
+          </div>
+        </div>
+      )}
+      
+      {!loading && filteredGroups.map((g) => {
+        const memberCount = g.participants?.length || 0;
+        const isSelected = selectedGroup === (g.chatId || g._id);
+        return (
+          <div
+            key={g._id || g.chatId}
+            onClick={() => onSelectGroup(g.chatId || g._id)}
+            className={`mx-2 p-3 rounded-lg cursor-pointer transition flex items-center gap-3 ${
+              isSelected ? 'bg-violet-600/20 border border-violet-600/30' : 'bg-neutral-800/50 hover:bg-neutral-800'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full bg-violet-600/20 flex items-center justify-center text-sm text-violet-300 font-semibold">
+              {g.chatName?.charAt(0).toUpperCase() || "G"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-['Lexend:SemiBold',_sans-serif] text-[13px] text-neutral-50 truncate">
+                {g.chatName || "Group"}
+              </div>
+              <div className="font-['Lexend:Regular',_sans-serif] text-[11px] text-neutral-400 truncate">
+                {memberCount} {memberCount === 1 ? 'member' : 'members'}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 /* ------------------------------ Search Input ----------------------------- */
 function SearchContainer({ isCollapsed = false, onSearchChange }) {
   const [searchValue, setSearchValue] = useState("");
@@ -400,7 +524,7 @@ function IconNavButton({ children, isActive = false, onClick }) {
     <button
       type="button"
       className={`flex items-center justify-center rounded-lg size-10 min-w-10 transition-colors duration-500
-        ${isActive ? "bg-neutral-800 text-neutral-50" : "hover:bg-neutral-800 text-neutral-400 hover:text-neutral-300"}`}
+        ${isActive ? "bg-[#e6e6e6] text-black" : "hover:bg-[#e6e6e6]/20 text-neutral-400 hover:text-[#e6e6e6]"}`}
       style={{ transitionTimingFunction: softSpringEasing }}
       onClick={onClick}
     >
@@ -411,9 +535,9 @@ function IconNavButton({ children, isActive = false, onClick }) {
 function IconNavigation({ activeSection, onSectionChange }) {
   const navItems = [
     { id: "dashboard", icon: <Dashboard size={16} />, label: "Dashboard" },
-    { id: "chats", icon: <Task size={16} />, label: "Chats" },
-    { id: "groups", icon: <Folder size={16} />, label: "Groups" },
-    { id: "media", icon: <Analytics size={16} />, label: "Media & Files" },
+    { id: "chats", icon: <Chat size={16} />, label: "Chats" },
+    { id: "groups", icon: <Group size={16} />, label: "Groups" },
+    { id: "media", icon: <Folder size={16} />, label: "Media & Files" },
     { id: "settings", icon: <SettingsIcon size={16} />, label: "Settings" },
   ];
   return (
@@ -474,7 +598,7 @@ function SectionTitle({ title, onToggleCollapse, isCollapsed }) {
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="flex items-center justify-center rounded-lg size-10 min-w-10 transition-all duration-500 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-300"
+            className="flex items-center justify-center rounded-lg size-10 min-w-10 transition-all duration-500 hover:bg-[#e6e6e6]/20 text-neutral-400 hover:text-[#e6e6e6]"
             style={{ transitionTimingFunction: softSpringEasing }}
             aria-label="Collapse sidebar"
           >
@@ -485,7 +609,7 @@ function SectionTitle({ title, onToggleCollapse, isCollapsed }) {
     </div>
   );
 }
-function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser }) {
+function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser, selectedGroup, onSelectGroup }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState(new Set());
@@ -529,6 +653,8 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
       >
         {activeSection === "chats" ? (
           <UsersList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedUser={selectedUser} onSelectUser={onSelectUser} />
+        ) : activeSection === "groups" ? (
+          <GroupsList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedGroup={selectedGroup} onSelectGroup={onSelectGroup} />
         ) : (
           <>
             {content.sections.map((section, index) => (
@@ -1141,10 +1267,10 @@ function ChatSection({ selectedUser }) {
               <div key={msg._id || msg.id} className={`flex ${msg.isCurrentUser ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-xs px-4 py-2 rounded-lg ${
                   msg.isCurrentUser 
-                    ? "text-white" 
+                    ? "text-black" 
                     : "bg-neutral-800 text-neutral-300"
                 }`}
-                style={msg.isCurrentUser ? { backgroundColor: "#a684ff" } : {}}
+                style={msg.isCurrentUser ? { backgroundColor: "#e6e6e6" } : {}}
                 >
                   {msg.messageType === 'file' ? (
                     <a 
@@ -1175,7 +1301,7 @@ function ChatSection({ selectedUser }) {
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="px-3 py-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-medium transition flex items-center justify-center flex-shrink-0 hover:scale-110 duration-200"
+          className="px-3 py-3 bg-[#e6e6e6]/20 hover:bg-[#e6e6e6]/30 text-[#e6e6e6] rounded-lg font-medium transition flex items-center justify-center flex-shrink-0 hover:scale-110 duration-200"
           title="Attach file"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1192,7 +1318,7 @@ function ChatSection({ selectedUser }) {
         />
         <Button
           onClick={handleSendMessage}
-          style={{ backgroundColor: "#a684ff" }}
+          className="bg-[#e6e6e6] hover:bg-[#d4d4d4] text-black font-medium transition"
         >
           Send
         </Button>
@@ -1211,7 +1337,7 @@ function ChatSection({ selectedUser }) {
             />
             <button
               onClick={() => setFullscreenImage(null)}
-              className="absolute top-4 right-4 bg-neutral-700 hover:bg-neutral-600 text-white p-2 rounded-lg transition"
+              className="absolute top-4 right-4 bg-[#e6e6e6]/20 hover:bg-[#e6e6e6]/40 text-[#e6e6e6] p-2 rounded-lg transition"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1238,14 +1364,12 @@ function SettingsPageRenderer({ page }) {
   }
 }
 /* --------------------------------- Floating Box -------------------------------- */
-function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, selectedUser }) {
+function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, selectedUser, selectedGroup }) {
   const sectionNames = {
     dashboard: { title: "Dashboard", description: "View your overview and executive summaries", icon: "📊" },
     chats: { title: "Chats", description: "Connect and chat with your team members", icon: "💬" },
-    projects: { title: "Projects", description: "Organize and manage your projects", icon: "📁" },
-    calendar: { title: "Calendar", description: "Schedule and plan your events", icon: "📅" },
-    teams: { title: "Teams", description: "Collaborate with your team members", icon: "👥" },
-    analytics: { title: "Analytics", description: "View detailed reports and insights", icon: "📈" },
+    groups: { title: "Groups", description: "Organize and manage your groups", icon: "👥" },
+    media: { title: "Media & Files", description: "Access your shared media and documents", icon: "📁" },
     settings: { title: "Settings", description: "Manage your account and preferences", icon: "⚙️" },
     admin: { title: "Admin Panel", description: "Monitor flagged messages and moderation", icon: "🛡️" },
   };
@@ -1253,7 +1377,7 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
   const leftPosition = sidebarCollapsed ? "left-44" : "left-108";
   return (
     <div
-      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-neutral-800 bg-neutral-950 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#e6e6e6]/30 bg-neutral-950 shadow-lg shadow-[#e6e6e6]/10 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
       style={{
         transitionTimingFunction: softSpringEasing,
       }}
@@ -1263,7 +1387,7 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
       ) : activeSection === "dashboard" ? (
         <DashboardView />
       ) : activeSection === "groups" ? (
-        <GroupsView selectedPage={selectedSettingsPage} />
+        <GroupsView selectedPage={selectedGroup || selectedSettingsPage} />
       ) : activeSection === "media" ? (
         <MediaView selectedFilter={selectedSettingsPage || "all"} />
       ) : activeSection === "settings" ? (
@@ -1294,27 +1418,30 @@ function TwoLevelSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const activeSection = location.pathname.split("/")[1] || "dashboard";
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { isSidebarCollapsed, setIsSidebarCollapsed } = useSidebar();
   const [selectedSettingsPage, setSelectedSettingsPage] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const handleSectionChange = (section) => {
     navigate(`/${section}`);
     setSelectedSettingsPage(null);
   };
   return (
     <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-black">
-      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-neutral-800">
+      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-[#e6e6e6]/20 shadow-lg shadow-[#e6e6e6]/5">
         <IconNavigation activeSection={activeSection} onSectionChange={handleSectionChange} />
         <DetailSidebar 
           activeSection={activeSection} 
-          isCollapsed={sidebarCollapsed} 
-          onCollapseChange={setSidebarCollapsed}
+          isCollapsed={isSidebarCollapsed} 
+          onCollapseChange={setIsSidebarCollapsed}
           onSettingsPageSelect={setSelectedSettingsPage}
           selectedUser={selectedUser}
           onSelectUser={setSelectedUser}
+          selectedGroup={selectedGroup}
+          onSelectGroup={setSelectedGroup}
         />
       </div>
-      <FloatingBox activeSection={activeSection} sidebarCollapsed={sidebarCollapsed} selectedSettingsPage={selectedSettingsPage} selectedUser={selectedUser} />
+      <FloatingBox activeSection={activeSection} sidebarCollapsed={isSidebarCollapsed} selectedSettingsPage={selectedSettingsPage} selectedUser={selectedUser} selectedGroup={selectedGroup} />
     </div>
   );
 }

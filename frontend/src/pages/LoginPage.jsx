@@ -149,6 +149,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   
   const [mouseX, setMouseX] = useState(0);
   const [mouseY, setMouseY] = useState(0);
@@ -257,7 +258,7 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       toast.success('Welcome back!');
       navigate('/', { replace: true });
     } catch (err) {
@@ -530,7 +531,19 @@ export default function LoginPage() {
               </div>
             </div>
 
-
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-[#e6e6e6] cursor-pointer accent-[#e6e6e6]"
+              />
+              <label htmlFor="rememberMe" className="text-sm text-neutral-300 cursor-pointer select-none">
+                Keep me signed in
+              </label>
+            </div>
 
             {error && (
               <div className="p-3 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg">
@@ -564,7 +577,7 @@ export default function LoginPage() {
           {/* Sign Up Link */}
           <div className="text-center text-sm text-neutral-500 mt-8">
             Don't have an account?{" "}
-            <a onClick={(e) => { e.preventDefault(); navigate('/register'); }} href="/register" className="text-[#e6e6e6] font-medium hover:text-white hover:underline cursor-pointer">
+            <a onClick={(e) => { e.preventDefault(); navigate('/register'); }} href="/register" className="text-[#e6e6e6] font-medium hover:text-[#f5f5f5] hover:underline cursor-pointer transition-colors">
               Sign Up
             </a>
           </div>
