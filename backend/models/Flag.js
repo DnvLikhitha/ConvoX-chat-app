@@ -64,8 +64,7 @@ const flagSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for performance
-flagSchema.index({ flagId: 1 });
+// Indexes for performance (flagId index is auto-created by unique:true)
 flagSchema.index({ messageId: 1 });
 flagSchema.index({ flaggedBy: 1 });
 flagSchema.index({ status: 1 });

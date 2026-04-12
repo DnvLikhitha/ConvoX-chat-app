@@ -53,6 +53,8 @@ const register = async (req, res) => {
       username: newUser.username,
       email: newUser.email,
       avatar: newUser.avatar,
+      bannerUrl: newUser.bannerUrl,
+      bio: newUser.bio,
       status: newUser.status,
       role: newUser.role,
       createdAt: newUser.createdAt
@@ -131,9 +133,13 @@ const login = async (req, res) => {
       username: user.username,
       email: user.email,
       avatar: user.avatar,
+      bannerUrl: user.bannerUrl,
+      bio: user.bio,
       status: user.status,
       role: user.role,
-      lastSeen: user.lastSeen
+      lastSeen: user.lastSeen,
+      friends: user.friends || [],
+      friendCount: user.friends?.length || 0,
     };
 
     res.json({
@@ -182,15 +188,25 @@ const logout = async (req, res) => {
 // Get current user profile
 const getProfile = async (req, res) => {
   try {
+    // Always re-fetch from DB so we get latest bannerUrl, bio, friends etc.
+    const { User } = require('../models');
+    const freshUser = await User.findById(req.user._id).select('-password').populate('friends', 'username avatar status');
+
     const userData = {
-      id: req.user._id,
-      username: req.user.username,
-      email: req.user.email,
-      avatar: req.user.avatar,
-      status: req.user.status,
-      role: req.user.role,
-      lastSeen: req.user.lastSeen,
-      createdAt: req.user.createdAt
+      id: freshUser._id,
+      _id: freshUser._id,
+      username: freshUser.username,
+      email: freshUser.email,
+      avatar: freshUser.avatar,
+      bannerUrl: freshUser.bannerUrl,
+      bio: freshUser.bio,
+      status: freshUser.status,
+      role: freshUser.role,
+      lastSeen: freshUser.lastSeen,
+      createdAt: freshUser.createdAt,
+      friends: freshUser.friends || [],
+      friendCount: freshUser.friends?.length || 0,
+      isAdmin: freshUser.role === 'admin',
     };
 
     res.json({

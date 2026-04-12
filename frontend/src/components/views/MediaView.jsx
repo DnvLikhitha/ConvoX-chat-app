@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/useAuth'
 import { mediaApi } from '../../services/api'
 import { FileImage, FileText, Video, Download, X } from 'lucide-react'
+import { resolveUrl } from '../../utils/resolveUrl'
 
 const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i
 const VID_EXT = /\.(mp4|mov|avi|mkv|webm)$/i
@@ -31,7 +32,8 @@ function Lightbox({ src, onClose }) {
 function MediaCard({ item, onPreview }) {
   const type = getType(item)
   const isImg = type === 'Images'
-  const fileUrl = item.fileUrl ? `http://localhost:5000${item.fileUrl}` : null
+  const fileUrl = resolveUrl(item.fileUrl)
+  const senderAvatar = resolveUrl(item.sender?.avatar)
   const date = new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   return (
@@ -48,9 +50,20 @@ function MediaCard({ item, onPreview }) {
       <div className="p-2.5">
         <p className="text-xs font-medium text-white truncate">{item.fileName || 'File'}</p>
         <div className="mt-1 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] text-neutral-500">From: {item.sender?.username || '—'}</p>
-            <p className="text-[10px] text-neutral-600">{date}</p>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+               <div className="h-4 w-4 rounded-full bg-neutral-800 flex items-center justify-center text-[8px] text-neutral-400 overflow-hidden shrink-0 border border-neutral-700">
+                  {senderAvatar ? (
+                    <img src={senderAvatar} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    item.sender?.username?.charAt(0).toUpperCase() || '?'
+                  )}
+               </div>
+               <p className="text-[11px] font-semibold text-neutral-300 truncate max-w-[80px]">
+                 {item.sender?.username || '—'}
+               </p>
+            </div>
+            <p className="text-[10px] text-neutral-600 ml-5">{date}</p>
           </div>
           {fileUrl && (
             <a href={fileUrl} download={item.fileName} onClick={e => e.stopPropagation()}

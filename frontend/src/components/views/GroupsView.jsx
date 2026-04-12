@@ -4,6 +4,7 @@ import { useSocket } from '../../contexts/SocketContext'
 import { chatApi, authApi } from '../../services/api'
 import { toast } from 'react-toastify'
 import { Plus, Search, X, Send, Users, Hash, Check, CheckCheck } from 'lucide-react'
+import { resolveUrl } from '../../utils/resolveUrl'
 
 function initials(name) {
   if (!name) return '?'
@@ -90,8 +91,12 @@ function CreateGroupModal({ open, onClose, onCreate }) {
                     return (
                       <button key={u._id} type="button" onClick={() => toggle(u)}
                         className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${sel ? 'bg-violet-600/20' : 'hover:bg-neutral-700'}`}>
-                        <div className="h-7 w-7 rounded-full bg-neutral-700 flex items-center justify-center text-xs font-medium text-neutral-300">
-                          {initials(u.username)}
+                        <div className="h-7 w-7 rounded-full bg-neutral-700 flex items-center justify-center text-xs font-medium text-neutral-300 overflow-hidden">
+                          {u.avatar ? (
+                            <img src={resolveUrl(u.avatar)} alt={u.username} className="w-full h-full object-cover" />
+                          ) : (
+                            initials(u.username)
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-white truncate">{u.username}</p>
@@ -186,8 +191,12 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-5 py-3 border-b border-neutral-800 bg-neutral-900/50 shrink-0">
-        <div className="h-9 w-9 rounded-xl bg-violet-600/20 text-violet-300 font-semibold flex items-center justify-center text-xs">
-          {initials(name)}
+        <div className="h-9 w-9 rounded-xl bg-violet-600/20 text-violet-300 font-semibold flex items-center justify-center text-xs overflow-hidden">
+          {chat?.avatar ? (
+            <img src={resolveUrl(chat.avatar)} alt={name} className="w-full h-full object-cover" />
+          ) : (
+            initials(name)
+          )}
         </div>
         <div>
           <p className="font-semibold text-white text-sm">{name}</p>
@@ -266,7 +275,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
 }
 
 /* ─── Main GroupsView — no left panel, driven by selectedPage prop ─── */
-export default function GroupsView({ selectedPage }) {
+export default function GroupsView({ selectedPage, onGroupCreated: notifyParent }) {
   const { user } = useAuth()
   const { socket, connected } = useSocket()
   const [showCreate, setShowCreate] = useState(false)
@@ -282,6 +291,8 @@ export default function GroupsView({ selectedPage }) {
     if (socket && connected) socket.emit('join_room', g.chatId)
     toast.success('Group created! Select it from the sidebar.')
     setShowCreate(false)
+    // Notify parent so sidebar can refresh
+    notifyParent?.(g)
   }
 
   const hasGroup = selectedPage && selectedPage !== 'create' && selectedPage !== 'filter'

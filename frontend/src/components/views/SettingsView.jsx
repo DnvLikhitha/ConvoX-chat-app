@@ -4,6 +4,7 @@ import { usersApi } from '../../services/api'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
 import { Check, Camera, Eye, EyeOff, AlertTriangle, X, Flag, Trash, ShieldOff } from 'lucide-react'
+import { resolveUrl } from '../../utils/resolveUrl'
 
 function initials(name) {
   if (!name) return '?'
@@ -12,8 +13,8 @@ function initials(name) {
 
 function Card({ title, children }) {
   return (
-    <div className="rounded-2xl bg-neutral-900 border border-neutral-800 mb-4">
-      <div className="px-5 py-3 border-b border-neutral-800">
+    <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 mb-4">
+      <div className="px-5 py-3 border-b border-[#e6e6e6]/20">
         <h3 className="font-semibold text-white text-sm">{title}</h3>
       </div>
       <div className="p-5 space-y-4">{children}</div>
@@ -25,7 +26,7 @@ function FieldInput({ label, ...props }) {
   return (
     <div>
       <label className="block text-xs font-medium text-neutral-400 mb-1.5">{label}</label>
-      <input className="w-full rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-600 transition-colors" {...props} />
+      <input className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" {...props} />
     </div>
   )
 }
@@ -37,8 +38,8 @@ function Toggle({ checked, onChange, label, description }) {
         <p className="text-sm font-medium text-white">{label}</p>
         {description && <p className="text-xs text-neutral-500 mt-0.5">{description}</p>}
       </div>
-      <button onClick={() => onChange(!checked)} className={`relative shrink-0 h-6 w-11 rounded-full transition-all duration-300 ${checked ? 'bg-violet-600' : 'bg-neutral-700'}`}>
-        <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${checked ? 'translate-x-5' : ''}`} />
+      <button onClick={() => onChange(!checked)} className={`relative shrink-0 h-6 w-11 rounded-full transition-all duration-300 ${checked ? 'bg-[#e6e6e6]' : 'bg-neutral-700'}`}>
+        <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-black shadow-sm transition-transform duration-300 ${checked ? 'translate-x-5' : ''}`} />
       </button>
     </div>
   )
@@ -66,8 +67,14 @@ function ProfileContent({ user }) {
       <Card title="Avatar">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className="h-16 w-16 rounded-2xl overflow-hidden bg-violet-600 flex items-center justify-center text-white text-xl font-bold">
-              {avatarPreview ? <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" /> : initials(user?.username)}
+            <div className="h-16 w-16 rounded-2xl overflow-hidden bg-neutral-800 flex items-center justify-center text-white text-xl font-bold border border-[#e6e6e6]/10">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+              ) : user?.avatar ? (
+                <img src={resolveUrl(user.avatar)} alt="avatar" className="h-full w-full object-cover" />
+              ) : (
+                initials(user?.username)
+              )}
             </div>
             <button onClick={() => fileRef.current?.click()} className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 hover:bg-violet-600 hover:border-violet-600 hover:text-white transition-all">
               <Camera className="h-3 w-3" />
@@ -92,8 +99,8 @@ function ProfileContent({ user }) {
           <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell us about yourself..." rows={2}
             className="w-full rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-600 transition-colors resize-none" />
         </div>
-        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm text-white font-medium hover:bg-violet-700 transition-colors disabled:opacity-50">
-          {saving ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Check className="h-4 w-4" />}
+        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 rounded-xl bg-[#e6e6e6] px-4 py-2 text-sm text-black font-medium hover:bg-[#d4d4d4] transition-colors disabled:opacity-50">
+          {saving ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Check className="h-4 w-4" />}
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </Card>
@@ -133,7 +140,7 @@ function SecurityContent() {
           <label className="block text-xs font-medium text-neutral-400 mb-1.5">Current Password</label>
           <div className="relative">
             <input type={showC ? 'text' : 'password'} value={current} onChange={e => setCurrent(e.target.value)} placeholder="Current password" required
-              className="w-full rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-600 transition-colors" />
+              className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" />
             <button type="button" onClick={() => setShowC(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">
               {showC ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -143,7 +150,7 @@ function SecurityContent() {
           <label className="block text-xs font-medium text-neutral-400 mb-1.5">New Password</label>
           <div className="relative">
             <input type={showN ? 'text' : 'password'} value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="New password" required
-              className="w-full rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-600 transition-colors" />
+              className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" />
             <button type="button" onClick={() => setShowN(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">
               {showN ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -156,12 +163,12 @@ function SecurityContent() {
         </div>
         <FieldInput label="Confirm Password" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm new password" required />
         <button type="submit" disabled={saving || !current || !newPwd || !confirm}
-          className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm text-white font-medium hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+          className="flex items-center gap-2 rounded-xl bg-[#e6e6e6] px-4 py-2 text-sm text-black font-medium hover:bg-[#d4d4d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />}
           {saving ? 'Updating...' : 'Update Password'}
         </button>
 
-        <div className="pt-4 border-t border-neutral-800">
+        <div className="pt-4 border-t border-[#e6e6e6]/20">
           <p className="text-xs font-medium text-neutral-400 mb-3">Danger Zone</p>
           <DangerSection />
         </div>
@@ -199,8 +206,8 @@ function DangerSection() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-800">
+          <div className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#e6e6e6]/20">
               <h2 className="text-sm font-semibold text-red-400 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" /> Confirm Deletion
               </h2>
@@ -253,9 +260,9 @@ function PreferencesContent() {
     <>
       <Card title="Notifications">
         <Toggle checked={desktop} onChange={v => saveNotif('notif_desktop', v, setDesktop)} label="Desktop Notifications" description="Browser notifications for new messages" />
-        <div className="h-px bg-neutral-800" />
+        <div className="h-px bg-[#e6e6e6]/20" />
         <Toggle checked={sound} onChange={v => saveNotif('notif_sound', v, setSound)} label="Sound Alerts" description="Play a sound on new messages" />
-        <div className="h-px bg-neutral-800" />
+        <div className="h-px bg-[#e6e6e6]/20" />
         <Toggle checked={preview} onChange={v => saveNotif('notif_preview', v, setPreview)} label="Message Preview" description="Show message content in notifications" />
       </Card>
 
@@ -273,7 +280,7 @@ function PreferencesContent() {
         <p className="text-xs text-neutral-500">Font Size</p>
         <div className="flex gap-2">
           {['Small', 'Medium', 'Large'].map(s => (
-            <button key={s} onClick={() => applySize(s)} className={`flex-1 rounded-xl py-2 text-xs font-medium transition-all border ${fontSize === s ? 'bg-violet-600 border-violet-600 text-white' : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-600'}`}>{s}</button>
+            <button key={s} onClick={() => applySize(s)} className={`flex-1 rounded-xl py-2 text-xs font-medium transition-all border ${fontSize === s ? 'bg-[#e6e6e6] border-[#e6e6e6] text-black' : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-600'}`}>{s}</button>
           ))}
         </div>
       </Card>
@@ -299,11 +306,11 @@ function FlaggedMessagesContent() {
 
   if (loading) return (
     <div className="flex justify-center py-12">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-700 border-t-violet-600" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-700 border-t-[#e6e6e6]" />
     </div>
   )
   if (error) return (
-    <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-6 text-center">
+    <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-6 text-center">
       <ShieldOff className="h-8 w-8 text-neutral-600 mx-auto mb-2" />
       <p className="text-sm text-neutral-400">Failed to load flagged messages</p>
       <p className="text-xs text-neutral-600 mt-1">{error}</p>
@@ -319,13 +326,13 @@ function FlaggedMessagesContent() {
       </div>
 
       {messages.length === 0 ? (
-        <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-8 text-center">
+        <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-8 text-center">
           <Flag className="h-10 w-10 text-neutral-700 mx-auto mb-3" />
           <p className="text-sm font-medium text-white">No flagged messages</p>
           <p className="text-xs text-neutral-500 mt-1">All clear — nothing to review</p>
         </div>
       ) : messages.map((msg, i) => (
-        <div key={msg._id || i} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
+        <div key={msg._id || i} className="rounded-xl bg-neutral-900 border border-[#e6e6e6]/20 p-4">
           <div className="flex items-start gap-3">
             <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
               <Flag className="h-3.5 w-3.5 text-red-400" />
@@ -351,8 +358,8 @@ function FlaggedMessagesContent() {
 function DefaultContent({ user }) {
   return (
     <div className="flex flex-col gap-4 items-start">
-      <div className="flex items-center gap-4 w-full rounded-2xl bg-neutral-900 border border-neutral-800 p-5">
-        <div className="h-14 w-14 rounded-2xl bg-violet-600 flex items-center justify-center text-white text-xl font-bold shrink-0">
+      <div className="flex items-center gap-4 w-full rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-5">
+        <div className="h-14 w-14 rounded-2xl bg-[#e6e6e6] flex items-center justify-center text-black text-xl font-bold shrink-0">
           {initials(user?.username)}
         </div>
         <div>

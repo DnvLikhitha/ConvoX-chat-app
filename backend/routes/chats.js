@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../middleware/auth');
 const { Chat, Message, User } = require('../models');
+const Flag = require('../models/Flag');
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -480,4 +481,100 @@ router.post('/:chatId/messages', authenticateToken, async (req, res) => {
   }
 });
 
+// Flag a message
+router.post('/:chatId/messages/:messageId/flag', authenticateToken, async (req, res) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const { reason, description } = req.body;
+
+    // Check if user is participant
+    const chat = await Chat.findOne({
+      chatId,
+      'participants.user': req.user._id
+    });
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat not found or you are not a participant'
+      });
+    }
+
+    // Find the message
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Create flag
+    const flagId = `flag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const flag = new Flag({
+      flagId,
+      messageId: messageId,
+      flaggedBy: req.user._id,
+      reason: reason || 'other',
+      description: description || '',
+      status: 'pending'
+    });
+
+    await flag.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Message flagged successfully',
+      data: { flag }
+    });
+  } catch (error) {
+    console.error('Error flagging message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to flag message',
+      errors: [error.message]
+    });
+  }
+});
+
+// Flag a message (standalone — no chatId required)
+router.post('/messages/:messageId/flag', authenticateToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { reason, description } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    // Verify the requester is a participant of that chat
+    const chat = await Chat.findOne({
+      chatId: message.chatId,
+      'participants.user': req.user._id,
+    });
+    if (!chat) {
+      return res.status(403).json({ success: false, message: 'Not a participant of this chat' });
+    }
+
+    const flagId = `flag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const flag = new Flag({
+      flagId,
+      messageId,
+      flaggedBy: req.user._id,
+      reason: reason || 'other',
+      description: description || '',
+      status: 'pending',
+    });
+    await flag.save();
+
+    res.status(201).json({ success: true, message: 'Message flagged successfully', data: { flag } });
+  } catch (error) {
+    console.error('Error flagging message (standalone):', error);
+    res.status(500).json({ success: false, message: 'Failed to flag message', errors: [error.message] });
+  }
+});
+
 module.exports = router;
+

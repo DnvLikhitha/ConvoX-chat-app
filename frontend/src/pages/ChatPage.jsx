@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/useAuth'
 import { useSocket } from '../contexts/SocketContext'
-import { chatApi, authApi } from '../services/api'
+import { chatApi, authApi, usersApi } from '../services/api'
 import { toast } from 'react-toastify'
 import { useIsMobile } from '../hooks/use-mobile'
 import { SidebarComponent } from '../components/ui/sidebar-component'
@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
 import {
   Search, Plus, Send, LogOut, Info, ArrowLeft, X, MessageSquare,
-  Users, Hash, Check, CheckCheck, Shield, Clock, Menu,
+  Users, Hash, Check, CheckCheck, Shield, Clock, Menu, Flag, MoreVertical,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -323,6 +323,7 @@ export default function ChatPage() {
   const isMobile = useIsMobile()
 
   const [chats, setChats] = useState([])
+  const [friendsList, setFriendsList] = useState([])
   const [activeChat, setActiveChat] = useState(null)
   const [messages, setMessages] = useState([])
   const [typingUsers, setTypingUsers] = useState([])
@@ -331,19 +332,40 @@ export default function ChatPage() {
   const [showInfo, setShowInfo] = useState(false)
   const [showNewChat, setShowNewChat] = useState(false)
   const [draft, setDraft] = useState('')
+  const [flagDialog, setFlagDialog] = useState({ open: false, messageId: null })
+  const [flagReason, setFlagReason] = useState('')
+  const [flagging, setFlagging] = useState(false)
+  const [msgMenu, setMsgMenu] = useState(null)
 
   const bottomRef = useRef(null)
   const typingTimeouts = useRef({})
+
+  // Load friends list
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await usersApi.getFriendsList()
+        setFriendsList(r.data?.data?.friends || [])
+      } catch (err) {
+        console.error('Failed to load friends:', err)
+      }
+    })()
+  }, [])
 
   // Load chats
   useEffect(() => {
     (async () => {
       setLoadingChats(true)
-      try { const r = await chatApi.getChats(); setChats(r.data?.data?.chats || []) }
-      catch { toast.error('Failed to load chats') }
+      try {
+        const r = await chatApi.getChats()
+        const allChats = r.data?.data?.chats || []
+        // Sort by most recent message
+        const sorted = [...allChats].sort((a, b) => new Date(b.lastMessageAt || b.createdAt) - new Date(a.lastMessageAt || a.createdAt))
+        setChats(sorted)
+      } catch { toast.error('Failed to load chats') }
       finally { setLoadingChats(false) }
     })()
-  }, [])
+  }, [user?.id])
 
   // Load messages
   useEffect(() => {
@@ -386,6 +408,14 @@ export default function ChatPage() {
     if (socket && connected && activeChat) socket.emit('join_room', activeChat.chatId)
   }, [socket, connected, activeChat?.chatId])
 
+  useEffect(() => {
+    const handleClickOutside = () => setMsgMenu(null)
+    if (msgMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [msgMenu])
+
   // Send
   const handleSend = useCallback(async () => {
     const text = draft.trim()
@@ -403,6 +433,26 @@ export default function ChatPage() {
 
   function emitTyping() {
     if (socket && activeChat) socket.emit('typing', { room: activeChat.chatId, user: user?.username })
+  }
+
+  async function handleFlagMessage() {
+    if (!flagDialog.messageId || !flagReason.trim()) {
+      toast.error('Please provide a reason')
+      return
+    }
+
+    setFlagging(true)
+    try {
+      await usersApi.flagMessage(flagDialog.messageId, flagReason)
+      toast.success('Message flagged. Admins will review it.')
+      setFlagDialog({ open: false, messageId: null })
+      setFlagReason('')
+    } catch (err) {
+      console.error('Failed:', err)
+      toast.error('Failed to flag message')
+    } finally {
+      setFlagging(false)
+    }
   }
 
   function selectChat(chat) {
@@ -514,12 +564,43 @@ export default function ChatPage() {
                                 {!isOwn && showAvatar && isGroup && (
                                   <p className="text-xs text-primary mb-1 ml-1">{msg.sender?.username}</p>
                                 )}
-                                <Card className={cn(
-                                  'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
-                                  isOwn ? 'bg-primary text-primary-foreground border-0' : ''
-                                )}>
+                              <div className="relative group">
+                                <Card 
+                                  className={cn(
+                                    'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+                                    isOwn ? 'bg-primary text-primary-foreground border-0' : ''
+                                  )}
+                                >
                                   {msg.messageText}
+                                  {msgMenu === msg._id && !isOwn && (
+                                    <div className="mt-2 pt-2 border-t border-neutral-600">
+                                      <button
+                                        onClick={() => {
+                                          setFlagDialog({ open: true, messageId: msg._id })
+                                          setFlagReason('')
+                                          setMsgMenu(null)
+                                        }}
+                                        className="w-full px-2 py-1 text-xs text-left text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2 transition"
+                                      >
+                                        <Flag className="h-3.5 w-3.5" />
+                                        Flag as inappropriate
+                                      </button>
+                                    </div>
+                                  )}
                                 </Card>
+                                {!isOwn && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMsgMenu(msgMenu === msg._id ? null : msg._id)
+                                    }}
+                                    className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 hover:bg-neutral-500/30 rounded-lg text-neutral-400 hover:text-neutral-200 transition hover:scale-110"
+                                    title="Message options"
+                                  >
+                                    <MoreVertical className="h-5 w-5" />
+                                  </button>
+                                )}
+                              </div>
                                 <div className={cn('flex items-center gap-1 mt-1 px-1', isOwn ? 'justify-end' : '')}>
                                   <span className="text-[11px] text-muted-foreground">{time}</span>
                                   {isOwn && <MsgStatus status={msg.status} />}
@@ -569,6 +650,30 @@ export default function ChatPage() {
         </div>
 
         <NewChatDialog open={showNewChat} onOpenChange={setShowNewChat} onCreated={onChatCreated} />
+        {/* Flag Message Dialog */}
+        <Dialog open={flagDialog.open} onOpenChange={(open) => !open && setFlagDialog({ open: false, messageId: null })}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Report Inappropriate Message</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Reason for flagging..."
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                maxLength={500}
+                className="min-h-24"
+              />
+              <p className="text-xs text-muted-foreground">{flagReason.length}/500</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFlagDialog({ open: false, messageId: null })}>Cancel</Button>
+              <Button onClick={handleFlagMessage} disabled={flagging}>
+                {flagging ? 'Flagging...' : 'Flag Message'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   )

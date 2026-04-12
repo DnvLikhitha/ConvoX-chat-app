@@ -22,6 +22,7 @@ export const authApi = {
   login: (payload) => api.post('/auth/login', payload),
   logout: () => api.post('/auth/logout'),
   profile: () => api.get('/auth/profile'),
+  // Returns { data: { users } }
   getUsers: (search = '') => api.get('/auth/users', { params: { search } }),
 }
 
@@ -37,11 +38,40 @@ export const statsApi = {
 }
 
 export const usersApi = {
+  // Returns { data: { users } }
   getAll: (search = '') => api.get('/users', { params: { search } }),
+  // Returns { data: { users } }
+  searchUsers: (query) => api.get('/users', { params: { search: query } }),
+  // Returns { data: { user, friendStatus } }
   getById: (id) => api.get(`/users/${id}`),
+  getUserProfile: (id) => api.get(`/users/${id}`),
+  // Returns { data: { user } }
   updateProfile: (payload) => api.put('/users/profile', payload),
   updatePassword: (payload) => api.put('/users/password', payload),
   deleteAccount: () => api.delete('/users/me'),
+
+  // Avatar / banner
+  uploadAvatar: (formData) =>
+    api.post('/users/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  uploadBanner: (formData) =>
+    api.post('/users/banner', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+
+  // Friends — returns { data: { friends } }
+  getFriendsList: () => api.get('/users/friends'),
+  // Friend requests — returns { data: { requests } }
+  getFriendRequests: () => api.get('/users/friend-requests'),
+  sendFriendRequest: (userId) => api.post(`/users/${userId}/friend-request`),
+  acceptFriendRequest: (userId) => api.post(`/users/${userId}/friend-request/accept`),
+  rejectFriendRequest: (userId) => api.post(`/users/${userId}/friend-request/reject`),
+
+  // Flag message — fixed URL (no chatId required)
+  flagMessage: (messageId, reason) =>
+    api.post(`/chats/messages/${messageId}/flag`, { reason }),
+
+  // Admin
+  getFlaggedMessages: () => api.get('/admin/flagged-messages'),
+  approveFlaggedMessage: (flagId) => api.post(`/admin/flagged-messages/${flagId}/approve`),
+  banUser: (userId, reason) => api.post(`/admin/users/${userId}/ban`, { reason }),
 }
 
 export const analyticsApi = {

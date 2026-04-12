@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/useAuth";
 import { useSidebar } from "../../contexts/SidebarContext";
+import { useSocket } from "../../contexts/SocketContext";
+import { resolveUrl } from "../../utils/resolveUrl";
 
 import DashboardView from "../views/DashboardView";
 import SettingsView from "../views/SettingsView";
 import MediaView from "../views/MediaView";
 import GroupsView from "../views/GroupsView";
+import UserProfileView from "../views/UserProfileView";
+import ProfilePreviewModal from "./ProfilePreviewModal";
 import { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount } from "./avatar";
 import { Button } from "./button";
 import { Field } from "./field";
@@ -71,9 +75,9 @@ const svgPaths = {
     "M8 2C8.49445 2 8.9778 2.14662 9.38893 2.42133C9.80005 2.69603 10.1205 3.08648 10.3097 3.54329C10.4989 4.00011 10.5484 4.50277 10.452 4.98773C10.3555 5.47268 10.1174 5.91814 9.76777 6.26777C9.41814 6.6174 8.97268 6.8555 8.48773 6.95196C8.00277 7.04843 7.50011 6.99892 7.04329 6.8097C6.58648 6.62048 6.19603 6.30005 5.92133 5.88893C5.64662 5.4778 5.5 4.99445 5.5 4.5C5.5 3.83696 5.76339 3.20107 6.23223 2.73223C6.70107 2.26339 7.33696 2 8 2ZM8 1C7.30777 1 6.63108 1.20527 6.0555 1.58986C5.47993 1.97444 5.03133 2.52107 4.76642 3.16061C4.50152 3.80015 4.4322 4.50388 4.56725 5.18282C4.7023 5.86175 5.03564 6.48539 5.52513 6.97487C6.01461 7.46436 6.63825 7.7977 7.31718 7.93275C7.99612 8.0678 8.69985 7.99849 9.33939 7.73358C9.97893 7.46867 10.5256 7.02007 10.9101 6.4445C11.2947 5.86892 11.5 5.19223 11.5 4.5C11.5 3.57174 11.1313 2.6815 10.4749 2.02513C9.8185 1.36875 8.92826 1 8 1Z",
   p3af0dbf2: "M8 9C8.55228 9 9 8.55228 9 8C9 7.44772 8.55228 7 8 7C7.44772 7 7 7.44772 7 8C7 8.55228 7.44772 9 8 9Z",
   p5113400:
-    "M14.252 4.06808L8.25195 0.568081C8.17548 0.523469 8.08853 0.499962 8 0.499962C7.91147 0.499962 7.82452 0.523469 7.74805 0.568081L1.74805 4.06808C1.67257 4.11212 1.60994 4.17517 1.56642 4.25095C1.5229 4.32673 1.5 4.41259 1.5 4.49998V11.5C1.5 11.5874 1.5229 11.6732 1.56642 11.749C1.60994 11.8248 1.67257 11.8878 1.74805 11.9319L7.74805 15.4319C7.82452 15.4765 7.91147 15.5 8 15.5C8.08853 15.5 8.17548 15.4765 8.25195 15.4319L14.252 11.9319C14.3274 11.8878 14.3901 11.8248 14.4336 11.749C14.4771 11.6732 14.5 11.5874 14.5 11.5V4.49998C14.5 4.41259 14.4771 4.32673 14.4336 4.25095C14.3901 4.17517 14.3274 4.11212 14.252 4.06808ZM8 1.57883L13.0078 4.49998L8 7.42113L2.9922 4.49998L8 1.57883ZM2.5 5.37058L7.5 8.28708V14.1294L2.5 11.2129В5.37058ZM8.5 14.1294V8.28708L13.5 5.37058V11.2129L8.5 14.1294Z",
+    "M14.252 4.06808L8.25195 0.568081C8.17548 0.523469 8.08853 0.499962 8 0.499962C7.91147 0.499962 7.82452 0.523469 7.74805 0.568081L1.74805 4.06808C1.67257 4.11212 1.60994 4.17517 1.56642 4.25095C1.5229 4.32673 1.5 4.41259 1.5 4.49998V11.5C1.5 11.5874 1.5229 11.6732 1.56642 11.749C1.60994 11.8248 1.67257 11.8878 1.74805 11.9319L7.74805 15.4319C7.82452 15.4765 7.91147 15.5 8 15.5C8.08853 15.5 8.17548 15.4765 8.25195 15.4319L14.252 11.9319C14.3274 11.8878 14.3901 11.8248 14.4336 11.749C14.4771 11.6732 14.5 11.5874 14.5 11.5V4.49998C14.5 4.41259 14.4771 4.32673 14.4336 4.25095C14.3901 4.17517 14.3274 4.11212 14.252 4.06808ZM8 1.57883L13.0078 4.49998L8 7.42113L2.9922 4.49998L8 1.57883ZM2.5 5.37058L7.5 8.28708V14.1294L2.5 11.2129V5.37058ZM8.5 14.1294V8.28708L13.5 5.37058V11.2129L8.5 14.1294Z",
   pfa0d600:
-    "M6.32 10C6.20799 10 6.15198 10 6.1092 9.9782C6.07157 9.95903 6.04097 9.92843 6.0218 9.8908C6 9.84802 6 9.79201 6 9.68В6.32C6 6.20799 6 6.15198 6.0218 6.1092C6.04097 6.07157 6.07157 6.04097 6.1092 6.0218C6.15198 6 6.20799 6 6.32 6L17.68 6C17.792 6 17.848 6 17.8908 6.0218C17.9284 6.04097 17.959 6.07157 17.9782 6.1092C18 6.15198 18 6.20799 18 6.32V9.68C18 9.79201 18 9.84802 17.9782 9.8908C17.959 9.92843 17.9284 9.95903 17.8908 9.9782C17.848 10 17.792 10 17.68 10H6.32Z",
+    "M6.32 10C6.20799 10 6.15198 10 6.1092 9.9782C6.07157 9.95903 6.04097 9.92843 6.0218 9.8908C6 9.84802 6 9.79201 6 9.68V6.32C6 6.20799 6 6.15198 6.0218 6.1092C6.04097 6.07157 6.07157 6.04097 6.1092 6.0218C6.15198 6 6.20799 6 6.32 6L17.68 6C17.792 6 17.848 6 17.8908 6.0218C17.9284 6.04097 17.959 6.07157 17.9782 6.1092C18 6.15198 18 6.20799 18 6.32V9.68C18 9.79201 18 9.84802 17.9782 9.8908C17.959 9.92843 17.9284 9.95903 17.8908 9.9782C17.848 10 17.792 10 17.68 10H6.32Z",
 };
 const softSpringEasing = "cubic-bezier(0.25, 1.1, 0.4, 1)";
 /* ----------------------------- Brand / Logos ----------------------------- */
@@ -123,7 +127,7 @@ function AvatarCircle() {
   );
 }
 /* ------------------------------ Users List ----------------------------- */
-function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSelectUser }) {
+function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSelectUser, onUserContextMenu }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -153,7 +157,8 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
         }
         
         const data = await response.json();
-        setUsers(data.data || []);
+        // API returns { success, data: { users } }
+        setUsers(data.data?.users || data.data || []);
         setError(null);
       } catch (err) {
         console.error("Error fetching users:", err);
@@ -233,9 +238,13 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
           onClick={() => onSelectUser(u)}
           className="mx-2 p-3 rounded-lg bg-neutral-800/50 hover:bg-neutral-800 cursor-pointer transition flex items-center gap-3"
         >
-          <div className="relative">
-            <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-sm text-neutral-400">
-              {u.username?.charAt(0).toUpperCase() || "U"}
+          <div className="relative" onContextMenu={(e) => onUserContextMenu?.(e, u._id || u.id)}>
+            <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-sm text-neutral-400 overflow-hidden cursor-context-menu">
+              {u.avatar ? (
+                <img src={resolveUrl(u.avatar)} alt={u.username} className="w-full h-full object-cover" />
+              ) : (
+                u.username?.charAt(0).toUpperCase() || "U"
+              )}
             </div>
             <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 ${getStatusColor(u.status || "offline")} rounded-full border border-black`}></div>
           </div>
@@ -253,7 +262,7 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
   );
 }
 /* ------------------------------ Groups List ----------------------------- */
-function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, onSelectGroup }) {
+function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, onSelectGroup, refreshKey = 0 }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -301,7 +310,7 @@ function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, on
     if (activeSection === "groups") {
       fetchGroups();
     }
-  }, [activeSection]);
+  }, [activeSection, refreshKey]);
   
   const filteredGroups = groups.filter(group =>
     group.chatName?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -356,8 +365,12 @@ function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, on
               isSelected ? 'bg-violet-600/20 border border-violet-600/30' : 'bg-neutral-800/50 hover:bg-neutral-800'
             }`}
           >
-            <div className="w-8 h-8 rounded-full bg-violet-600/20 flex items-center justify-center text-sm text-violet-300 font-semibold">
-              {g.chatName?.charAt(0).toUpperCase() || "G"}
+            <div className="w-8 h-8 rounded-full bg-violet-600/20 flex items-center justify-center text-sm text-violet-300 font-semibold overflow-hidden">
+              {g.avatar ? (
+                <img src={resolveUrl(g.avatar)} alt={g.chatName} className="w-full h-full object-cover" />
+              ) : (
+                g.chatName?.charAt(0).toUpperCase() || "G"
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-['Lexend:SemiBold',_sans-serif] text-[13px] text-neutral-50 truncate">
@@ -439,15 +452,16 @@ function getSidebarContent(activeSection, isAdmin = false) {
         {
           title: "Dashboard Types",
           items: [
-            { icon: <View size={16} className="text-neutral-50" />, label: "Overview", isActive: true },
+            { icon: <View size={16} className="text-neutral-50" />, label: "Overview", dashboardView: "overview" },
             {
               icon: <Dashboard size={16} className="text-neutral-50" />,
               label: "Executive Summary",
-              hasDropdown: true,
-              children: [
-                { label: "Revenue Overview" },
-                { label: "Key Performance Indicators" },
-              ],
+              dashboardView: "summary",
+            },
+            {
+              icon: <AddLarge size={16} className="text-neutral-50" />,
+              label: "Add Friends",
+              dashboardView: "friends",
             },
           ],
         },
@@ -497,7 +511,8 @@ function getSidebarContent(activeSection, isAdmin = false) {
         {
           title: "Account",
           items: [
-            { icon: <UserIcon size={16} className="text-neutral-50" />, label: "Profile settings", settingsPage: "profile" },
+            { icon: <UserIcon size={16} className="text-neutral-50" />, label: "View Profile", settingsPage: "view-profile" },
+            { icon: <UserIcon size={16} className="text-neutral-50" />, label: "Edit Profile", settingsPage: "profile" },
             { icon: <Security size={16} className="text-neutral-50" />, label: "Security", settingsPage: "security" },
           ],
         },
@@ -541,7 +556,7 @@ function IconNavigation({ activeSection, onSectionChange }) {
     { id: "settings", icon: <SettingsIcon size={16} />, label: "Settings" },
   ];
   return (
-    <aside className="bg-black flex flex-col gap-2 items-center p-4 w-16 border-r border-neutral-800">
+    <aside className="bg-[#0f0f11] flex flex-col gap-2 items-center p-4 w-16 border-r border-[#27272a]">
       <div className="mb-2 size-10 flex items-center justify-center">
         <div className="size-7">
           <InterfacesLogoSquare />
@@ -609,7 +624,7 @@ function SectionTitle({ title, onToggleCollapse, isCollapsed }) {
     </div>
   );
 }
-function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser, selectedGroup, onSelectGroup }) {
+function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser, selectedGroup, onSelectGroup, selectedDashboardView, onDashboardViewChange, groupRefreshKey = 0, onUserContextMenu }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState(new Set());
@@ -631,15 +646,13 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
   const toggleCollapse = () => onCollapseChange(!isCollapsed);
   return (
     <aside
-      className={`flex flex-col gap-4 items-start p-4 transition-all duration-500 border-r border-white/[0.06] ${
+      className={`flex flex-col gap-4 items-start p-4 transition-all duration-500 border-r border-[#27272a] ${
         isCollapsed ? "w-16 min-w-16 !px-0 justify-center" : "w-80"
       }`}
       style={{
         transitionTimingFunction: softSpringEasing,
-        background: "rgba(10, 10, 10, 0.55)",
-        backdropFilter: "blur(18px) saturate(180%)",
-        WebkitBackdropFilter: "blur(18px) saturate(180%)",
-        boxShadow: "inset 1px 1px 0px rgba(255,255,255,0.08), inset -1px -1px 0px rgba(255,255,255,0.03)",
+        background: "#121214",
+        boxShadow: "inset -1px 0px 0px rgba(255,255,255,0.02)",
       }}
     >
       {!isCollapsed && <BrandBadge />}
@@ -652,9 +665,16 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
         style={{ transitionTimingFunction: softSpringEasing }}
       >
         {activeSection === "chats" ? (
-          <UsersList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedUser={selectedUser} onSelectUser={onSelectUser} />
+          <UsersList 
+            searchQuery={searchQuery} 
+            activeSection={activeSection} 
+            isCollapsed={isCollapsed} 
+            selectedUser={selectedUser} 
+            onSelectUser={onSelectUser}
+            onUserContextMenu={onUserContextMenu}
+          />
         ) : activeSection === "groups" ? (
-          <GroupsList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedGroup={selectedGroup} onSelectGroup={onSelectGroup} />
+          <GroupsList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedGroup={selectedGroup} onSelectGroup={onSelectGroup} refreshKey={groupRefreshKey} />
         ) : (
           <>
             {content.sections.map((section, index) => (
@@ -665,13 +685,15 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
                 onToggleExpanded={toggleExpanded}
                 isCollapsed={isCollapsed}
                 onSettingsPageSelect={onSettingsPageSelect}
+                onDashboardViewChange={onDashboardViewChange}
+                selectedDashboardView={selectedDashboardView}
               />
             ))}
           </>
         )}
       </div>
       {!isCollapsed && (
-        <div className="w-full mt-auto pt-2 border-t border-neutral-800">
+        <div className="w-full mt-auto pt-2 border-t border-[#e6e6e6]/20">
           <div className="flex items-center gap-2 px-2 py-2">
             <AvatarCircle />
             <div className="flex flex-col flex-1 min-w-0">
@@ -692,28 +714,33 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
   );
 }
 /* ------------------------------ Menu Elements ----------------------------- */
-function MenuItem({ item, isExpanded, onToggle, onItemClick, isCollapsed }) {
+function MenuItem({ item, isExpanded, onToggle, onItemClick, isCollapsed, selectedDashboardView }) {
   const handleClick = () => {
     if (item.settingsPage) {
       onItemClick?.(item.settingsPage);
+    } else if (item.dashboardView) {
+      onItemClick?.(item.dashboardView);
     } else if (item.hasDropdown && onToggle) {
       onToggle();
     } else {
       onItemClick?.();
     }
   };
+  
+  const isActive = item.dashboardView ? item.dashboardView === selectedDashboardView : item.isActive;
+  
   return (
     <div
       className={`relative shrink-0 transition-all duration-500 ${
         isCollapsed ? "w-full flex justify-center" : "w-full"
       }`}
-      style={{ transitionTimingFunction: softSpringEasing }}
+      style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}
     >
       <div
         className={`rounded-lg cursor-pointer transition-all duration-500 flex items-center relative ${
-          item.isActive ? "bg-neutral-800" : "hover:bg-neutral-800"
+          isActive ? "bg-[#e6e6e6]/20" : "hover:bg-[#e6e6e6]/10"
         } ${isCollapsed ? "w-10 min-w-10 h-10 justify-center p-4" : "w-full h-10 px-4 py-2"}`}
-        style={{ transitionTimingFunction: softSpringEasing }}
+        style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}
         onClick={handleClick}
         title={isCollapsed ? item.label : undefined}
       >
@@ -722,7 +749,7 @@ function MenuItem({ item, isExpanded, onToggle, onItemClick, isCollapsed }) {
           className={`flex-1 relative transition-opacity duration-500 overflow-hidden ${
             isCollapsed ? "opacity-0 w-0" : "opacity-100 ml-3"
           }`}
-          style={{ transitionTimingFunction: softSpringEasing }}
+          style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}
         >
           <div className="font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-50 leading-[20px] truncate">
             {item.label}
@@ -753,7 +780,7 @@ function SubMenuItem({ item, onItemClick }) {
   return (
     <div className="w-full pl-9 pr-1 py-[1px]">
       <div
-        className="h-10 w-full rounded-lg cursor-pointer transition-colors hover:bg-neutral-800 flex items-center px-3 py-1"
+        className="h-10 w-full rounded-lg cursor-pointer transition-colors hover:bg-[#e6e6e6]/10 flex items-center px-3 py-1"
         onClick={onItemClick}
       >
         <div className="flex-1 min-w-0">
@@ -765,7 +792,7 @@ function SubMenuItem({ item, onItemClick }) {
     </div>
   );
 }
-function MenuSection({ section, expandedItems, onToggleExpanded, isCollapsed, onSettingsPageSelect }) {
+function MenuSection({ section, expandedItems, onToggleExpanded, isCollapsed, onSettingsPageSelect, onDashboardViewChange, selectedDashboardView }) {
   return (
     <div className="flex flex-col w-full">
       <div
@@ -789,14 +816,17 @@ function MenuSection({ section, expandedItems, onToggleExpanded, isCollapsed, on
               item={item}
               isExpanded={isExpanded}
               onToggle={() => onToggleExpanded(itemKey)}
-              onItemClick={(settingsPage) => {
-                if (settingsPage) {
-                  onSettingsPageSelect?.(settingsPage);
+              onItemClick={(value) => {
+                if (item.dashboardView) {
+                  onDashboardViewChange?.(item.dashboardView);
+                } else if (item.settingsPage) {
+                  onSettingsPageSelect?.(item.settingsPage);
                 } else {
                   console.log(`Clicked ${item.label}`);
                 }
               }}
               isCollapsed={isCollapsed}
+              selectedDashboardView={selectedDashboardView}
             />
             {isExpanded && item.children && !isCollapsed && (
               <div className="flex flex-col gap-1 mb-2">
@@ -998,6 +1028,9 @@ function AdminPanelPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+  const [banDialog, setBanDialog] = useState({ open: false, userId: null, username: null });
+  const [banReason, setBanReason] = useState('');
+  
   // Fetch flagged messages from backend
   React.useEffect(() => {
     const fetchFlaggedMessages = async () => {
@@ -1022,6 +1055,7 @@ function AdminPanelPage() {
     };
     fetchFlaggedMessages();
   }, []);
+  
   const handleApproove = async (messageId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
@@ -1040,6 +1074,7 @@ function AdminPanelPage() {
       setActionLoading(prev => ({ ...prev, [messageId]: false }));
     }
   };
+  
   const handleRemove = async (messageId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
@@ -1058,6 +1093,7 @@ function AdminPanelPage() {
       setActionLoading(prev => ({ ...prev, [messageId]: false }));
     }
   };
+  
   const handleWarnUser = async (messageId, userId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
@@ -1078,6 +1114,37 @@ function AdminPanelPage() {
       console.error("Error warning user:", err);
     } finally {
       setActionLoading(prev => ({ ...prev, [messageId]: false }));
+    }
+  };
+
+  const handleBanUser = async () => {
+    if (!banDialog.userId || !banReason.trim()) {
+      alert('Please provide a ban reason');
+      return;
+    }
+
+    try {
+      setActionLoading(prev => ({ ...prev, [banDialog.userId]: true }));
+      const response = await fetch(`http://localhost:5000/api/admin/users/${banDialog.userId}/ban`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: banReason }),
+      });
+      if (!response.ok) throw new Error("Failed to ban user");
+      
+      // Remove all messages from this user
+      setFlaggedMessages(prev => prev.filter(msg => msg.sender?._id !== banDialog.userId));
+      setBanDialog({ open: false, userId: null, username: null });
+      setBanReason('');
+      alert('User banned successfully');
+    } catch (err) {
+      console.error("Error banning user:", err);
+      alert('Failed to ban user');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [banDialog.userId]: false }));
     }
   };
   return (
@@ -1103,7 +1170,7 @@ function AdminPanelPage() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 flex-wrap">
               <button 
                 onClick={() => handleApproove(msg._id || msg.id)}
                 disabled={actionLoading[msg._id || msg.id]}
@@ -1125,40 +1192,92 @@ function AdminPanelPage() {
               >
                 {actionLoading[msg._id || msg.id] ? "..." : "Warn User"}
               </button>
+              <button 
+                onClick={() => setBanDialog({ open: true, userId: msg.sender?._id, username: msg.sender?.username })}
+                disabled={actionLoading[msg._id || msg.id]}
+                className="px-3 py-1 bg-red-900/20 text-red-300 rounded text-xs hover:bg-red-900/40 transition disabled:opacity-50"
+              >
+                Ban User
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Ban User Dialog */}
+      {banDialog.open && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-neutral-900 rounded-lg p-6 max-w-md w-full mx-4 border border-neutral-700">
+            <h3 className="text-lg font-semibold text-neutral-50 mb-4">
+              Ban User: {banDialog.username}
+            </h3>
+            <div className="mb-4">
+              <label className="text-sm text-neutral-400 mb-2 block">Ban Reason</label>
+              <textarea
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value.slice(0, 500))}
+                placeholder="Enter reason for banning this user..."
+                className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded text-neutral-100 text-sm focus:outline-none focus:border-red-500 resize-none"
+                rows={4}
+              />
+              <p className="text-xs text-neutral-500 mt-1">{banReason.length}/500</p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setBanDialog({ open: false, userId: null, username: null });
+                  setBanReason('');
+                }}
+                className="px-4 py-2 bg-neutral-800 text-neutral-300 rounded hover:bg-neutral-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBanUser}
+                disabled={actionLoading[banDialog.userId] || !banReason.trim()}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading[banDialog.userId] ? "Banning..." : "Confirm Ban"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-function ChatSection({ selectedUser }) {
+function ChatSection({ selectedUser, onUserContextMenu }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [activeChatId, setActiveChatId] = useState(null);
   const fileInputRef = React.useRef(null);
+  const bottomRef = React.useRef(null);
+  const { socket, connected } = useSocket();
+
+  // Load messages
   React.useEffect(() => {
     if (!selectedUser) {
       setMessages([]);
+      setActiveChatId(null);
       setLoading(false);
       return;
     }
-    // Load messages from backend
     const loadMessages = async () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("chat_token");
         const userId = selectedUser._id || selectedUser.id;
         const response = await fetch(`http://localhost:5000/api/chats/user/${userId}/messages`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
+          headers: { "Authorization": `Bearer ${token}` },
         });
-        
         if (response.ok) {
           const data = await response.json();
-          setMessages(data.data || []);
+          const msgs = data.data || [];
+          setMessages(msgs);
+          // Capture the chatId for socket room joining
+          if (msgs.length > 0) setActiveChatId(msgs[0].chatId);
         }
       } catch (err) {
         console.error("Error loading messages:", err);
@@ -1168,6 +1287,22 @@ function ChatSection({ selectedUser }) {
     };
     loadMessages();
   }, [selectedUser]);
+
+  // Socket: join room & listen for new messages
+  React.useEffect(() => {
+    if (!socket || !connected || !activeChatId) return;
+    socket.emit('join_room', activeChatId);
+    const onMsg = (msg) => {
+      if (msg.chatId !== activeChatId) return;
+      setMessages(prev => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
+    };
+    socket.on('new_message', onMsg);
+    return () => socket.off('new_message', onMsg);
+  }, [socket, connected, activeChatId]);
+
+  // Auto-scroll
+  React.useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
   const handleSendMessage = async () => {
     if (!selectedUser || !newMessage.trim()) return;
     try {
@@ -1236,8 +1371,15 @@ function ChatSection({ selectedUser }) {
   return (
     <div className="flex flex-col h-full gap-4">
       <div className="flex items-center gap-3 pb-4 border-b border-neutral-800">
-        <div className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-sm text-neutral-400">
-          {selectedUser.username?.charAt(0).toUpperCase() || "U"}
+        <div 
+          className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-sm text-neutral-400 overflow-hidden cursor-context-menu"
+          onContextMenu={(e) => onUserContextMenu?.(e, selectedUser._id || selectedUser.id)}
+        >
+          {selectedUser.avatar ? (
+            <img src={resolveUrl(selectedUser.avatar)} alt={selectedUser.username} className="w-full h-full object-cover" />
+          ) : (
+            selectedUser.username?.charAt(0).toUpperCase() || "U"
+          )}
         </div>
         <div className="flex-1">
           <div className="font-['Lexend:SemiBold',_sans-serif] text-[14px] text-neutral-50">{selectedUser.username || "Unknown"}</div>
@@ -1291,6 +1433,7 @@ function ChatSection({ selectedUser }) {
           })
         )}
       </div>
+      <div ref={bottomRef} />
       <Field orientation="horizontal" className="pt-4 border-t border-neutral-800 gap-2 items-center">
         <input
           type="file"
@@ -1364,7 +1507,7 @@ function SettingsPageRenderer({ page }) {
   }
 }
 /* --------------------------------- Floating Box -------------------------------- */
-function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, selectedUser, selectedGroup }) {
+function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, selectedUser, selectedGroup, showProfile, onProfileClose, onProfileOpen, selectedDashboardView, onDashboardViewChange, onGroupCreated, onUserContextMenu }) {
   const sectionNames = {
     dashboard: { title: "Dashboard", description: "View your overview and executive summaries", icon: "📊" },
     chats: { title: "Chats", description: "Connect and chat with your team members", icon: "💬" },
@@ -1375,23 +1518,43 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
   };
   const current = sectionNames[activeSection] || sectionNames.dashboard;
   const leftPosition = sidebarCollapsed ? "left-44" : "left-108";
+  
+  if (showProfile) {
+    return (
+      <div
+        className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-[#18181b] shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+        style={{
+          transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      >
+        <button
+          onClick={onProfileClose}
+          className="mb-4 flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors self-start"
+        >
+          ← Back
+        </button>
+        <UserProfileView />
+      </div>
+    );
+  }
+  
   return (
     <div
-      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#e6e6e6]/30 bg-neutral-950 shadow-lg shadow-[#e6e6e6]/10 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-[#18181b] shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
       style={{
         transitionTimingFunction: softSpringEasing,
       }}
     >
       {activeSection === "chats" ? (
-        <ChatSection selectedUser={selectedUser} />
+        <ChatSection selectedUser={selectedUser} onUserContextMenu={onUserContextMenu} />
       ) : activeSection === "dashboard" ? (
-        <DashboardView />
+        <DashboardView selectedDashboardView={selectedDashboardView} onDashboardViewChange={onDashboardViewChange} />
       ) : activeSection === "groups" ? (
-        <GroupsView selectedPage={selectedGroup || selectedSettingsPage} />
+        <GroupsView selectedPage={selectedGroup || selectedSettingsPage} onGroupCreated={onGroupCreated} />
       ) : activeSection === "media" ? (
         <MediaView selectedFilter={selectedSettingsPage || "all"} />
       ) : activeSection === "settings" ? (
-        <SettingsView selectedPage={selectedSettingsPage || "profile"} />
+        <SettingsView selectedPage={selectedSettingsPage} />
       ) : (
         <div className="flex flex-col gap-8 max-w-2xl">
           <div className="text-7xl">{current.icon}</div>
@@ -1422,13 +1585,25 @@ function TwoLevelSidebar() {
   const [selectedSettingsPage, setSelectedSettingsPage] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [selectedDashboardView, setSelectedDashboardView] = useState('overview');
+  const [groupRefreshKey, setGroupRefreshKey] = useState(0);
+  const [contextMenu, setContextMenu] = useState(null); // { userId, x, y }
+  
+  const handleUserContextMenu = (e, userId) => {
+    e.preventDefault();
+    setContextMenu({ userId, x: e.clientX, y: e.clientY });
+  };
+  
   const handleSectionChange = (section) => {
     navigate(`/${section}`);
     setSelectedSettingsPage(null);
+    setShowProfile(false);
   };
+  
   return (
-    <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-black">
-      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-[#e6e6e6]/20 shadow-lg shadow-[#e6e6e6]/5">
+    <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-[#09090b]">
+      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-[#27272a] shadow-2xl shadow-black/50">
         <IconNavigation activeSection={activeSection} onSectionChange={handleSectionChange} />
         <DetailSidebar 
           activeSection={activeSection} 
@@ -1439,9 +1614,20 @@ function TwoLevelSidebar() {
           onSelectUser={setSelectedUser}
           selectedGroup={selectedGroup}
           onSelectGroup={setSelectedGroup}
+          selectedDashboardView={selectedDashboardView}
+          onDashboardViewChange={setSelectedDashboardView}
+          groupRefreshKey={groupRefreshKey}
+          onUserContextMenu={handleUserContextMenu}
         />
       </div>
-      <FloatingBox activeSection={activeSection} sidebarCollapsed={isSidebarCollapsed} selectedSettingsPage={selectedSettingsPage} selectedUser={selectedUser} selectedGroup={selectedGroup} />
+      <FloatingBox activeSection={activeSection} sidebarCollapsed={isSidebarCollapsed} selectedSettingsPage={selectedSettingsPage} selectedUser={selectedUser} selectedGroup={selectedGroup} showProfile={showProfile} onProfileClose={() => setShowProfile(false)} onProfileOpen={() => setShowProfile(true)} selectedDashboardView={selectedDashboardView} onDashboardViewChange={setSelectedDashboardView} onGroupCreated={() => setGroupRefreshKey(k => k + 1)} onUserContextMenu={handleUserContextMenu} />
+      {contextMenu && (
+        <ProfilePreviewModal 
+          userId={contextMenu.userId} 
+          position={{ x: contextMenu.x, y: contextMenu.y }} 
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

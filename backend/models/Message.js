@@ -74,8 +74,7 @@ const messageSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for performance
-messageSchema.index({ messageId: 1 });
+// Indexes for performance (messageId index is auto-created by unique:true)
 messageSchema.index({ chatId: 1, createdAt: -1 });
 messageSchema.index({ sender: 1 });
 messageSchema.index({ status: 1 });

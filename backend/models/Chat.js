@@ -57,8 +57,7 @@ const chatSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for performance
-chatSchema.index({ chatId: 1 });
+// Index for performance (chatId index is auto-created by unique:true)
 chatSchema.index({ 'participants.user': 1 });
 chatSchema.index({ lastMessageAt: -1 });
 

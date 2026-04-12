@@ -26,6 +26,24 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  bio: {
+    type: String,
+    default: '',
+    maxlength: [500, 'Bio cannot exceed 500 characters']
+  },
+  bannerUrl: {
+    type: String,
+    default: null
+  },
+  friends: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  friendRequests: [{
+    from: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    createdAt: { type: Date, default: Date.now }
+  }],
   status: {
     type: String,
     enum: ['online', 'offline', 'away'],
@@ -43,14 +61,25 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  banReason: {
+    type: String,
+    default: null
+  },
+  bannedAt: {
+    type: Date,
+    default: null
+  },
+  bannedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
 }, {
   timestamps: true
 });
 
-// Index for better performance
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// Indexes for performance (username + email indexes are auto-created by unique:true)
 userSchema.index({ status: 1 });
 
 module.exports = mongoose.model('User', userSchema);
