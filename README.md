@@ -66,6 +66,3 @@ ConvoX is a high-performance, monochromatic real-time messaging application engi
 
 4. **Experience ConvoX**
    Navigate to `http://localhost:5173`. Authentication is required to access the real-time features.
-
-## 🛡️ License
-This project is open-source and available under the [MIT License](LICENSE).
