@@ -21,6 +21,7 @@ exports.getFlaggedMessages = async (req, res) => {
       return {
         _id: flag._id,
         id: flag._id,
+        messageId: message?._id,          // actual Message _id (for Remove Msg)
         content: message?.messageText || 'Message not found',
         sender: {
           _id: message?.sender?._id,
@@ -166,6 +167,7 @@ exports.removeMessage = async (req, res) => {
       messageId,
       { 
         isDeleted: true,
+        deletedByAdmin: true,
         deletedAt: new Date()
       },
       { new: true }
@@ -203,17 +205,28 @@ exports.removeMessage = async (req, res) => {
   }
 };
 
-// Warn a user
+// Warn a user (auto-ban after 4 warnings)
 exports.warnUser = async (req, res) => {
   try {
     const { userId } = req.params;
     const { reason, messageId } = req.body;
 
-    // Update flag status
+    // Increment warning count
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $inc: { warningCount: 1 } },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Update flag status to resolved
     if (messageId) {
       await Flag.findOneAndUpdate(
-        { messageId: messageId },
-        { 
+        { messageId },
+        {
           status: 'resolved',
           actionTaken: 'warning',
           reviewedBy: req.user.id,
@@ -223,17 +236,64 @@ exports.warnUser = async (req, res) => {
       );
     }
 
-    // In a real app, you'd send a warning notification to the user
-    res.json({ 
-      success: true, 
-      message: 'User warned successfully'
+    // Auto-ban when warning count reaches 4
+    const AUTO_BAN_THRESHOLD = 4;
+    if (user.warningCount >= AUTO_BAN_THRESHOLD) {
+      await User.findByIdAndUpdate(userId, {
+        isActive: false,
+        banReason: `Auto-banned after ${user.warningCount} warnings`,
+        bannedAt: new Date(),
+        bannedBy: req.user.id
+      });
+
+      // Resolve all pending flags for this user
+      const userMessages = await require('../models/Message').find({ sender: userId }).select('_id');
+      await Flag.updateMany(
+        { messageId: { $in: userMessages.map(m => m._id) }, status: 'pending' },
+        { status: 'resolved', actionTaken: 'user_banned', reviewedBy: req.user.id, reviewedAt: new Date() }
+      );
+
+      // Notify user via socket
+      const io = req.app?.get('socketio');
+      if (io) {
+        io.emit('admin_warning', {
+          userId,
+          type: 'ban',
+          warningCount: user.warningCount,
+          message: `Your account has been banned after ${user.warningCount} warnings.`,
+          timestamp: new Date()
+        });
+      }
+
+      return res.json({
+        success: true,
+        autoBanned: true,
+        warningCount: user.warningCount,
+        message: `User warned and automatically banned after ${user.warningCount} warnings`
+      });
+    }
+
+    // Send real-time warning via socket
+    const io = req.app?.get('socketio');
+    if (io) {
+      io.emit('admin_warning', {
+        userId,
+        type: 'warning',
+        warningCount: user.warningCount,
+        reason,
+        message: `You have received warning ${user.warningCount} of ${AUTO_BAN_THRESHOLD}. Reason: ${reason || 'Violation of community guidelines'}. You will be banned at ${AUTO_BAN_THRESHOLD} warnings.`,
+        timestamp: new Date()
+      });
+    }
+
+    res.json({
+      success: true,
+      autoBanned: false,
+      warningCount: user.warningCount,
+      message: `User warned (${user.warningCount}/${AUTO_BAN_THRESHOLD})`
     });
   } catch (error) {
     console.error('Error warning user:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to warn user',
-      error: error.message 
-    });
+    res.status(500).json({ success: false, message: 'Failed to warn user', error: error.message });
   }
 };

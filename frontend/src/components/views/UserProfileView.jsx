@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/useAuth'
-import { usersApi } from '../../services/api'
+import { usersApi, authApi } from '../../services/api'
 import { toast } from 'react-toastify'
 import { Camera, Shield, UserPlus, Check, X, Clock, MessageSquare, Users, Hash, CalendarDays, Pencil, Save } from 'lucide-react'
 import { ImageCropperModal } from '../ui/ImageCropperModal'
@@ -43,7 +43,7 @@ function StatusDot({ status }) {
 // ── Stat card ─────────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, accent = 'text-[#e6e6e6]' }) {
   return (
-    <div className="relative flex flex-col gap-2 rounded-2xl bg-white/[0.03] border border-white/[0.07] p-4 hover:border-white/[0.15] hover:bg-white/[0.05] transition-all duration-300 group overflow-hidden">
+    <div className="relative flex flex-col gap-2 rounded-2xl bg-[#18181b] border border-[#27272a] p-4 hover:border-white/[0.15] hover:bg-white/[0.05] transition-all duration-300 group overflow-hidden">
       {/* Subtle glow */}
       <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/[0.04] to-transparent pointer-events-none" />
       <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.06] ${accent}`}>
@@ -96,8 +96,11 @@ export default function UserProfileView({ userId = null, isFullscreen = false })
           setBio(u?.bio || '')
           setFriendStatus(fs || null)
         } else {
-          setProfileUser(currentUser)
-          setBio(currentUser?.bio || '')
+          // Always fetch fresh from API so totalMessages/totalChats are live
+          const res = await authApi.profile()
+          const freshUser = res.data?.data?.user
+          setProfileUser(freshUser || currentUser)
+          setBio(freshUser?.bio || currentUser?.bio || '')
         }
       } catch {
         toast.error('Failed to load profile')
@@ -106,7 +109,7 @@ export default function UserProfileView({ userId = null, isFullscreen = false })
       }
     }
     loadProfile()
-  }, [userId, currentUser, isOwnProfile])
+  }, [userId, isOwnProfile])
 
   // ── File Selection ────────────────────────────────────────────────────────
   const handleBannerSelect = (e) => {
@@ -373,7 +376,7 @@ export default function UserProfileView({ userId = null, isFullscreen = false })
         </div>
 
         {/* About me */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-5">
+        <div className="rounded-2xl bg-[#18181b] border border-[#27272a] p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest">About Me</h2>
             {isOwnProfile && !isEditing && (

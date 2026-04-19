@@ -221,7 +221,14 @@ function SidebarContent({ chats, activeChat, onSelect, onNewChat, onLogout, user
                     <span className="text-sm font-medium truncate">{name}</span>
                     <span className="text-[11px] text-muted-foreground ml-2 shrink-0">{timeLabel(chat.lastMessageAt || chat.createdAt)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{preview}</p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-xs text-muted-foreground truncate mr-2">{preview}</p>
+                    {chat.unreadCount > 0 && (
+                      <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">
+                        {chat.unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </Button>
             )
@@ -382,30 +389,84 @@ export default function ChatPage() {
   // Auto-scroll
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // Socket
+  const activeChatIdRef = useRef(activeChat?.chatId)
+  useEffect(() => {
+    activeChatIdRef.current = activeChat?.chatId
+    // Reset unread count when opening a chat
+    if (activeChat?.chatId) {
+      setChats(p => p.map(c => c.chatId === activeChat.chatId ? { ...c, unreadCount: 0 } : c))
+    }
+  }, [activeChat?.chatId])
+
+  const joinedRooms = useRef(new Set())
+
+  // Socket: Join rooms
   useEffect(() => {
     if (!socket || !connected) return
-    chats.forEach(c => socket.emit('join_room', c.chatId))
+    chats.forEach(c => {
+      if (!joinedRooms.current.has(c.chatId)) {
+        socket.emit('join_room', c.chatId)
+        joinedRooms.current.add(c.chatId)
+      }
+    })
+  }, [socket, connected, chats])
+
+  // Socket: Listeners
+  useEffect(() => {
+    if (!socket || !connected) return
 
     function onMsg(msg) {
-      setMessages(p => p.some(m => m._id === msg._id || m.messageId === msg.messageId) ? p : [...p, msg])
-      setChats(p => p.map(c => c.chatId === msg.chatId ? { ...c, lastMessage: msg, lastMessageAt: msg.createdAt || new Date().toISOString() } : c).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt)))
+      const isForActiveChat = msg.chatId === activeChatIdRef.current;
+      
+      if (isForActiveChat) {
+        setMessages(p => p.some(m => m._id === msg._id || m.messageId === msg.messageId) ? p : [...p, msg])
+      }
+      
+      setChats(p => p.map(c => {
+        if (c.chatId === msg.chatId) {
+          return { 
+            ...c, 
+            lastMessage: msg, 
+            lastMessageAt: msg.createdAt || new Date().toISOString(),
+            unreadCount: isForActiveChat ? 0 : (c.unreadCount || 0) + 1
+          }
+        }
+        return c
+      }).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt)))
     }
 
     function onTyping({ user: who, room }) {
-      if (room !== activeChat?.chatId) return
+      if (room !== activeChatIdRef.current) return
       setTypingUsers(p => p.includes(who) ? p : [...p, who])
       clearTimeout(typingTimeouts.current[who])
       typingTimeouts.current[who] = setTimeout(() => setTypingUsers(p => p.filter(u => u !== who)), 3000)
     }
 
+    function onStatusUpdate({ chatId, status }) {
+      if (chatId === activeChatIdRef.current) {
+        setMessages(p => p.map(m => {
+          // Only update messages sent by the current user (their messages get the status indicator)
+          const isOwn = m.sender?._id === user?.id || m.sender?.username === user?.username
+          if (isOwn && (m.status === 'sent' || m.status === 'delivered')) {
+            return { ...m, status }
+          }
+          return m
+        }))
+      }
+    }
+
     socket.on('new_message', onMsg)
     socket.on('user_typing', onTyping)
-    return () => { socket.off('new_message', onMsg); socket.off('user_typing', onTyping) }
-  }, [socket, connected, chats, activeChat?.chatId])
+    socket.on('messages_status_update', onStatusUpdate)
+    return () => { socket.off('new_message', onMsg); socket.off('user_typing', onTyping); socket.off('messages_status_update', onStatusUpdate) }
+  }, [socket, connected, user?.id, user?.username]) // removed activeChat, chats from deps
 
   useEffect(() => {
-    if (socket && connected && activeChat) socket.emit('join_room', activeChat.chatId)
+    if (socket && connected && activeChat) {
+      socket.emit('join_room', activeChat.chatId)
+      // Mark messages as read when user opens the chat
+      socket.emit('messages_read', { chatId: activeChat.chatId })
+    }
   }, [socket, connected, activeChat?.chatId])
 
   useEffect(() => {
@@ -491,7 +552,17 @@ export default function ChatPage() {
           <div className="flex flex-1 flex-col min-w-0">
             {!activeChat ? (
               /* Empty state */
-              <div className="flex flex-1 flex-col items-center justify-center p-6">
+              <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted mb-4">
+                  <MessageSquare className="h-10 w-10 text-muted-foreground" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Your Messages</h3>
+                <p className="text-muted-foreground max-w-sm mb-6">
+                  Select an existing conversation from the sidebar or start a new chat to connect.
+                </p>
+                <Button onClick={() => setShowNewChat(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> Start a New Chat
+                </Button>
               </div>
             ) : (
               <>
@@ -517,8 +588,13 @@ export default function ChatPage() {
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1">
-                  <div className="mx-auto max-w-3xl space-y-3 p-4">
+                <ScrollArea className="flex-1 relative group chat-scroll-area">
+                  {/* Interactive Background */}
+                  <div className="absolute inset-0 pointer-events-none opacity-[0.03] transition-opacity duration-1000 group-hover:opacity-10 dark:opacity-[0.05] dark:group-hover:opacity-20"
+                       style={{ backgroundImage: 'radial-gradient(circle at center, currentColor 1px, transparent 1px)', backgroundSize: '24px 24px', backgroundPosition: 'center center' }} />
+                  <div className="absolute inset-0 pointer-events-none opacity-20 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 dark:from-indigo-900/10 dark:via-purple-900/10 dark:to-pink-900/10" />
+                  
+                  <div className="mx-auto max-w-3xl space-y-3 p-4 relative z-10 w-full h-full min-h-full">
                     {loadingMsgs ? (
                       <div className="flex flex-col items-center gap-3 py-12">
                         <Skeleton className="h-10 w-48 rounded-xl" />
@@ -527,9 +603,9 @@ export default function ChatPage() {
                       </div>
                     ) : messages.length === 0 ? (
                       <div className="flex flex-col items-center py-16">
-                        <Card className="text-center">
+                        <Card className="text-center shadow-sm border border-border/50 bg-card/80 backdrop-blur-sm">
                           <CardHeader className="items-center">
-                            <Users className="h-8 w-8 text-primary mb-1" />
+                            <Users className="h-8 w-8 text-primary mb-1 animate-bounce" />
                             <CardDescription>No messages yet. Say hello! 👋</CardDescription>
                           </CardHeader>
                         </Card>
@@ -543,66 +619,69 @@ export default function ChatPage() {
                       if (msgDate !== lastDate) {
                         lastDate = msgDate
                         sep = (
-                          <div className="flex justify-center py-2">
-                            <Badge variant="outline" className="text-xs font-normal">
-                              {new Date(msg.createdAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                            </Badge>
+                          <div className="flex justify-center py-4 my-2">
+                            <div className="bg-background/80 backdrop-blur-md px-3 py-1 rounded-full border border-border/50 shadow-sm">
+                              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                                {new Date(msg.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
                           </div>
                         )
                       }
                       const time = new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
                       return (
-                        <div key={msg._id || msg.messageId || idx}>
+                        <div key={msg._id || msg.messageId || idx} className="group/msg animate-in fade-in slide-in-from-bottom-2 duration-300">
                           {sep}
                           <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
-                            <div className={cn('flex max-w-[75%] gap-2', isOwn ? 'flex-row-reverse' : '')}>
+                            <div className={cn('flex max-w-[85%] gap-2 relative', isOwn ? 'flex-row-reverse' : '')}>
                               {!isOwn && showAvatar ? (
-                                <Avatar className="h-8 w-8 mt-0.5"><AvatarFallback className="text-[10px]">{initials(msg.sender?.username)}</AvatarFallback></Avatar>
+                                <Avatar className="h-8 w-8 mt-auto mb-1 ring-2 ring-background shadow-sm hover:scale-105 transition-transform"><AvatarFallback className="text-[10px] bg-primary/10 text-primary">{initials(msg.sender?.username)}</AvatarFallback></Avatar>
                               ) : !isOwn ? <div className="w-8" /> : null}
-                              <div>
+                              <div className="flex flex-col">
                                 {!isOwn && showAvatar && isGroup && (
-                                  <p className="text-xs text-primary mb-1 ml-1">{msg.sender?.username}</p>
+                                  <p className="text-[11px] font-medium text-primary/80 mb-1 ml-1">{msg.sender?.username}</p>
                                 )}
-                              <div className="relative group">
+                              <div className="relative group/bubble flex gap-2 items-center">
+                                {isOwn && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setMsgMenu(msgMenu === msg._id ? null : msg._id) }}
+                                    className="opacity-0 group-hover/msg:opacity-100 p-1.5 hover:bg-muted rounded-full text-muted-foreground transition-all flex-shrink-0"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </button>
+                                )}
                                 <Card 
                                   className={cn(
-                                    'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
-                                    isOwn ? 'bg-primary text-primary-foreground border-0' : ''
+                                    'px-4 py-2.5 text-[15px] leading-relaxed shadow-sm transition-shadow hover:shadow-md',
+                                    isOwn 
+                                      ? 'bg-primary text-primary-foreground border-primary rounded-2xl rounded-br-sm' 
+                                      : 'bg-card border-border/50 rounded-2xl rounded-bl-sm'
                                   )}
                                 >
                                   {msg.messageText}
                                   {msgMenu === msg._id && !isOwn && (
-                                    <div className="mt-2 pt-2 border-t border-neutral-600">
+                                    <div className="mt-2 pt-2 border-t border-border/50">
                                       <button
-                                        onClick={() => {
-                                          setFlagDialog({ open: true, messageId: msg._id })
-                                          setFlagReason('')
-                                          setMsgMenu(null)
-                                        }}
-                                        className="w-full px-2 py-1 text-xs text-left text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2 transition"
+                                        onClick={() => { setFlagDialog({ open: true, messageId: msg._id }); setFlagReason(''); setMsgMenu(null) }}
+                                        className="w-full px-2 py-1 text-xs text-left text-destructive hover:bg-destructive/10 rounded flex items-center gap-2 transition"
                                       >
-                                        <Flag className="h-3.5 w-3.5" />
-                                        Flag as inappropriate
+                                        <Flag className="h-3.5 w-3.5" /> Flag as inappropriate
                                       </button>
                                     </div>
                                   )}
                                 </Card>
                                 {!isOwn && (
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMsgMenu(msgMenu === msg._id ? null : msg._id)
-                                    }}
-                                    className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 hover:bg-neutral-500/30 rounded-lg text-neutral-400 hover:text-neutral-200 transition hover:scale-110"
-                                    title="Message options"
+                                    onClick={(e) => { e.stopPropagation(); setMsgMenu(msgMenu === msg._id ? null : msg._id) }}
+                                    className="opacity-0 group-hover/msg:opacity-100 p-1.5 hover:bg-muted rounded-full text-muted-foreground transition-all flex-shrink-0"
                                   >
-                                    <MoreVertical className="h-5 w-5" />
+                                    <MoreVertical className="h-4 w-4" />
                                   </button>
                                 )}
                               </div>
-                                <div className={cn('flex items-center gap-1 mt-1 px-1', isOwn ? 'justify-end' : '')}>
-                                  <span className="text-[11px] text-muted-foreground">{time}</span>
+                                <div className={cn('flex items-center gap-1.5 mt-1 px-1', isOwn ? 'justify-end' : '')}>
+                                  <span className="text-[10px] font-medium text-muted-foreground/70">{time}</span>
                                   {isOwn && <MsgStatus status={msg.status} />}
                                 </div>
                               </div>

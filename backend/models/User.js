@@ -62,6 +62,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  warningCount: {
+    type: Number,
+    default: 0
+  },
   banReason: {
     type: String,
     default: null

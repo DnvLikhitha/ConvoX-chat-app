@@ -76,7 +76,7 @@ app.get('/', (req, res) => {
 // ENHANCED SOCKET.IO WITH USER TRACKING
 // ============================================
 
-// Store active users: { userId: socketId }
+// Store active users: { userId: Set<socketId> }
 const activeUsers = new Map();
 
 // Socket.IO Authentication Middleware
@@ -109,21 +109,26 @@ io.on('connection', async (socket) => {
   console.log(`👤 User connected: ${username} (${socket.id})`);
 
   try {
-    // Update user status to online
-    await User.findByIdAndUpdate(userId, { 
-      status: 'online',
-      lastSeen: new Date()
-    });
-
     // Track active user
-    activeUsers.set(userId, socket.id);
+    if (!activeUsers.has(userId)) {
+      activeUsers.set(userId, new Set());
+    }
+    activeUsers.get(userId).add(socket.id);
 
-    // Emit user status change to all connected clients
-    io.emit('user_status_changed', { 
-      userId, 
-      username, 
-      status: 'online' 
-    });
+    // Update user status to online if it's their first connection
+    if (activeUsers.get(userId).size === 1) {
+      await User.findByIdAndUpdate(userId, { 
+        status: 'online',
+        lastSeen: new Date()
+      });
+
+      // Emit user status change to all connected clients
+      io.emit('user_status_changed', { 
+        userId, 
+        username, 
+        status: 'online' 
+      });
+    }
 
     // Send list of online users to the newly connected user
     const onlineUserIds = Array.from(activeUsers.keys());
@@ -158,6 +163,53 @@ io.on('connection', async (socket) => {
     socket.to(room).emit('user_typing', { user, room });
   });
 
+  // Mark messages as delivered when user joins a room
+  socket.on('messages_delivered', async ({ chatId }) => {
+    try {
+      const Message = require('./models/Message');
+      // Update all 'sent' messages in this chat that the current user did NOT send
+      const result = await Message.updateMany(
+        { chatId, sender: { $ne: userId }, status: 'sent' },
+        { $set: { status: 'delivered' } }
+      );
+      if (result.modifiedCount > 0) {
+        // Notify the room that messages have been delivered
+        socket.to(chatId).emit('messages_status_update', {
+          chatId,
+          status: 'delivered',
+          updatedBy: userId
+        });
+      }
+    } catch (error) {
+      console.error('Error marking messages as delivered:', error);
+    }
+  });
+
+  // Mark messages as read when user views the chat
+  socket.on('messages_read', async ({ chatId }) => {
+    try {
+      const Message = require('./models/Message');
+      // Update all unread messages in this chat that the current user did NOT send
+      const result = await Message.updateMany(
+        { chatId, sender: { $ne: userId }, status: { $in: ['sent', 'delivered'] } },
+        {
+          $set: { status: 'read' },
+          $addToSet: { readBy: { user: userId, readAt: new Date() } }
+        }
+      );
+      if (result.modifiedCount > 0) {
+        // Notify the room that messages have been read
+        socket.to(chatId).emit('messages_status_update', {
+          chatId,
+          status: 'read',
+          updatedBy: userId
+        });
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  });
+
   // Manual status change
   socket.on('change_status', async ({ status }) => {
     try {
@@ -175,22 +227,30 @@ io.on('connection', async (socket) => {
     console.log(`❌ User disconnected: ${username} (${socket.id}) - Reason: ${reason}`);
 
     try {
-      // Update user status to offline
-      await User.findByIdAndUpdate(userId, { 
-        status: 'offline',
-        lastSeen: new Date()
-      });
-
       // Remove from active users
-      activeUsers.delete(userId);
+      const userSockets = activeUsers.get(userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
+        
+        // If no more active connections, mark as offline
+        if (userSockets.size === 0) {
+          activeUsers.delete(userId);
 
-      // Notify all clients about user going offline
-      io.emit('user_status_changed', { 
-        userId, 
-        username, 
-        status: 'offline',
-        lastSeen: new Date()
-      });
+          // Update user status to offline
+          await User.findByIdAndUpdate(userId, { 
+            status: 'offline',
+            lastSeen: new Date()
+          });
+
+          // Notify all clients about user going offline
+          io.emit('user_status_changed', { 
+            userId, 
+            username, 
+            status: 'offline',
+            lastSeen: new Date()
+          });
+        }
+      }
 
     } catch (error) {
       console.error('Error handling disconnect:', error);

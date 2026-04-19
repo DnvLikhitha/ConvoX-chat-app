@@ -7,7 +7,7 @@ const flagSchema = new mongoose.Schema({
     unique: true
   },
   messageId: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     required: true,
     ref: 'Message'
   },

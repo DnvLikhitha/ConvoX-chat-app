@@ -66,6 +66,10 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  deletedByAdmin: {
+    type: Boolean,
+    default: false
+  },
   deletedAt: {
     type: Date,
     default: null

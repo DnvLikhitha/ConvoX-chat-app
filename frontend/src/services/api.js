@@ -31,6 +31,10 @@ export const chatApi = {
   getMessages: (chatId, params) => api.get(`/chats/${chatId}/messages`, { params }),
   createChat: (payload) => api.post('/chats', payload),
   sendMessage: (chatId, payload) => api.post(`/chats/${chatId}/messages`, payload),
+  searchMessages: (query, limit = 20) => api.get('/chats/search', { params: { q: query, limit } }),
+  // Direct message helpers
+  getDirectMessages: (userId) => api.get(`/chats/user/${userId}/messages`),
+  sendDirectMessage: (userId, payload) => api.post(`/chats/user/${userId}/messages`, payload),
 }
 
 export const statsApi = {
@@ -56,8 +60,8 @@ export const usersApi = {
   uploadBanner: (formData) =>
     api.post('/users/banner', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 
-  // Friends — returns { data: { friends } }
   getFriendsList: () => api.get('/users/friends'),
+  getFriendSuggestions: () => api.get('/users/suggestions'),
   // Friend requests — returns { data: { requests } }
   getFriendRequests: () => api.get('/users/friend-requests'),
   sendFriendRequest: (userId) => api.post(`/users/${userId}/friend-request`),

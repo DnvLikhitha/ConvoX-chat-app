@@ -1,229 +1,320 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../contexts/useAuth'
+import { useSocket } from '../../contexts/SocketContext'
 import { usersApi } from '../../services/api'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
-import { Check, Camera, Eye, EyeOff, AlertTriangle, X, Flag, Trash, ShieldOff } from 'lucide-react'
+import { 
+  Check, Camera, Eye, EyeOff, AlertTriangle, 
+  X, ShieldCheck, UserCircle, SlidersHorizontal, 
+  Bell, Palette, Trash2, Ban, ShieldAlert, Shield
+} from 'lucide-react'
 import { resolveUrl } from '../../utils/resolveUrl'
+import FlaggedMessagesTable from '../ui/flagged-messages-table'
 
-function initials(name) {
-  if (!name) return '?'
-  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')
-}
-
-function Card({ title, children }) {
+/* ─── Shared UI Components ─── */
+function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
-    <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 mb-4">
-      <div className="px-5 py-3 border-b border-[#e6e6e6]/20">
-        <h3 className="font-semibold text-white text-sm">{title}</h3>
+    <div className="flex items-start gap-4 mb-8">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#18181b] border border-[#27272a] text-[#e6e6e6] shadow-sm">
+        <Icon className="h-6 w-6" />
       </div>
-      <div className="p-5 space-y-4">{children}</div>
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>
+        <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>
+      </div>
     </div>
   )
 }
 
-function FieldInput({ label, ...props }) {
+function FieldInput({ label, hint, ...props }) {
   return (
-    <div>
-      <label className="block text-xs font-medium text-neutral-400 mb-1.5">{label}</label>
-      <input className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" {...props} />
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">{label}</label>
+      <input
+        className="w-full rounded-xl bg-[#0e0e10] border border-[#27272a] px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors"
+        {...props}
+      />
+      {hint && <p className="text-[11px] text-neutral-600">{hint}</p>}
     </div>
   )
 }
 
 function Toggle({ checked, onChange, label, description }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-white">{label}</p>
-        {description && <p className="text-xs text-neutral-500 mt-0.5">{description}</p>}
+    <div className="flex items-start justify-between gap-6 p-5 hover:bg-white/[0.02] transition-colors group">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-white group-hover:text-[#e6e6e6] transition-colors">{label}</p>
+        {description && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{description}</p>}
       </div>
-      <button onClick={() => onChange(!checked)} className={`relative shrink-0 h-6 w-11 rounded-full transition-all duration-300 ${checked ? 'bg-[#e6e6e6]' : 'bg-neutral-700'}`}>
-        <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-black shadow-sm transition-transform duration-300 ${checked ? 'translate-x-5' : ''}`} />
+      <button 
+        onClick={() => onChange(!checked)} 
+        className={`relative shrink-0 h-6 w-11 rounded-full transition-all duration-300 ease-in-out ${checked ? 'bg-[#e6e6e6]' : 'bg-neutral-800'}`}
+      >
+        <span className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-[#0e0e10] shadow-sm transition-transform duration-300 ${checked ? 'translate-x-5' : ''}`} />
       </button>
     </div>
   )
 }
 
-/* ── Profile Content ── */
+/* ─── Profile Content ─── */
 function ProfileContent({ user }) {
   const [username, setUsername] = useState(user?.username || '')
-  const [bio, setBio] = useState('')
+  const [bio, setBio] = useState(user?.bio || '')
   const [avatarPreview, setAvatarPreview] = useState(null)
+  const [avatarFile, setAvatarFile] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => setAvatarPreview(reader.result)
+    reader.readAsDataURL(file)
+  }
 
   async function handleSave() {
     setSaving(true)
     try {
-      await usersApi.updateProfile({ username, bio, avatar: avatarPreview })
-      toast.success('Profile updated!')
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed') }
-    finally { setSaving(false) }
+      const payload = { username, bio }
+      // Only include avatar if we've actually selected a new one
+      if (avatarPreview) {
+        payload.avatar = avatarPreview
+      }
+      
+      await usersApi.updateProfile(payload)
+      toast.success('Profile updated successfully', {
+        icon: <Check className="h-4 w-4 text-emerald-500" />
+      })
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <>
-      <Card title="Avatar">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="h-16 w-16 rounded-2xl overflow-hidden bg-neutral-800 flex items-center justify-center text-white text-xl font-bold border border-[#e6e6e6]/10">
+    <div className="space-y-6 pb-8">
+      <SectionHeader icon={UserCircle} title="Profile" subtitle="Manage your public identity and bio" />
+
+      {/* Hero Card */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-800 to-[#18181b] border border-[#27272a] p-6 mb-2">
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <UserCircle className="h-24 w-24" />
+        </div>
+        <div className="flex flex-col sm:flex-row items-center gap-6 relative">
+          <div className="group relative">
+            <div className="h-24 w-24 rounded-3xl overflow-hidden bg-[#0e0e10] border-2 border-[#27272a] ring-4 ring-black/20 shadow-2xl transition-transform hover:scale-105">
               {avatarPreview ? (
-                <img src={avatarPreview} alt="avatar" className="h-full w-full object-cover" />
+                <img src={avatarPreview} alt="Preview" className="h-full w-full object-cover" />
               ) : user?.avatar ? (
-                <img src={resolveUrl(user.avatar)} alt="avatar" className="h-full w-full object-cover" />
+                <img src={resolveUrl(user.avatar)} alt={user.username} className="h-full w-full object-cover" />
               ) : (
-                initials(user?.username)
+                <div className="h-full w-full flex items-center justify-center text-2xl font-bold text-neutral-500">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </div>
               )}
             </div>
-            <button onClick={() => fileRef.current?.click()} className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 hover:bg-violet-600 hover:border-violet-600 hover:text-white transition-all">
-              <Camera className="h-3 w-3" />
+            <button 
+              onClick={() => fileRef.current?.click()}
+              className="absolute -bottom-2 -right-2 h-9 w-9 flex items-center justify-center rounded-xl bg-white text-black shadow-xl hover:scale-110 active:scale-95 transition-all"
+            >
+              <Camera className="h-4 w-4" />
             </button>
           </div>
-          <div>
-            <p className="text-sm text-white font-medium">{user?.username}</p>
-            <p className="text-xs text-neutral-500">{user?.email}</p>
-            <button onClick={() => fileRef.current?.click()} className="mt-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors">Upload photo</button>
+          <div className="text-center sm:text-left">
+            <h2 className="text-lg font-bold text-white">{user?.username}</h2>
+            <p className="text-sm text-neutral-400">{user?.email}</p>
+            <div className="mt-3 flex gap-2 justify-center sm:justify-start">
+              <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                Member Since {new Date(user?.createdAt).getFullYear()}
+              </span>
+            </div>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => {
-            const f = e.target.files?.[0]; if (!f) return
-            const r = new FileReader(); r.onload = ev => setAvatarPreview(ev.target.result); r.readAsDataURL(f)
-          }} />
         </div>
-      </Card>
+        <input ref={fileRef} type="file" className="hidden" accept="image/*" onChange={handleAvatarChange} />
+      </div>
 
-      <Card title="Personal Info">
-        <FieldInput label="Display Name" value={username} onChange={e => setUsername(e.target.value)} />
-        <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-1.5">Bio</label>
-          <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell us about yourself..." rows={2}
-            className="w-full rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-violet-600 transition-colors resize-none" />
+      {/* Fields */}
+      <div className="rounded-2xl bg-[#18181b] border border-[#27272a] p-5 space-y-5">
+        <FieldInput
+          label="Display Name"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          placeholder="What should people call you?"
+        />
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">Biography</label>
+          <textarea
+            value={bio}
+            onChange={e => setBio(e.target.value)}
+            placeholder="Write a short bio..."
+            rows={3}
+            className="w-full rounded-xl bg-[#0e0e10] border border-[#27272a] px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors resize-none"
+          />
+          <p className="text-[11px] text-neutral-600">{bio.length}/500 characters</p>
         </div>
-        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 rounded-xl bg-[#e6e6e6] px-4 py-2 text-sm text-black font-medium hover:bg-[#d4d4d4] transition-colors disabled:opacity-50">
-          {saving ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Check className="h-4 w-4" />}
-          {saving ? 'Saving...' : 'Save Changes'}
+        
+        <button 
+          onClick={handleSave} 
+          disabled={saving}
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#e6e6e6] py-3 text-sm text-black font-bold hover:bg-white active:scale-[0.98] transition-all disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Update Profile'}
+          {!saving && <Check className="h-4 w-4" />}
         </button>
-      </Card>
-    </>
+      </div>
+    </div>
   )
 }
 
-/* ── Security Content ── */
+/* ─── Security Content ─── */
 function SecurityContent() {
   const [current, setCurrent] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [showC, setShowC] = useState(false)
-  const [showN, setShowN] = useState(false)
 
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (newPwd !== confirm) { toast.error('Passwords do not match'); return }
-    if (newPwd.length < 6) { toast.error('Min 6 characters'); return }
+    if (newPwd !== confirm) return toast.error("Passwords don't match")
     setSaving(true)
     try {
       await usersApi.updatePassword({ currentPassword: current, newPassword: newPwd })
-      toast.success('Password updated!')
+      toast.success('Password updated successfully')
       setCurrent(''); setNewPwd(''); setConfirm('')
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed') }
-    finally { setSaving(false) }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const score = newPwd.length === 0 ? 0 : newPwd.length < 6 ? 1 : newPwd.length < 10 ? 2 : 3
-  const colors = ['', 'bg-red-500', 'bg-amber-500', 'bg-emerald-500']
+  const PwField = ({ label, value, onChange, show, onToggle, placeholder }) => (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          required
+          className="w-full rounded-xl bg-[#0e0e10] border border-[#27272a] px-4 py-3 pr-11 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors"
+        />
+        <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 hover:text-neutral-300 transition-colors">
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  )
 
   return (
-    <Card title="Change Password">
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-1.5">Current Password</label>
-          <div className="relative">
-            <input type={showC ? 'text' : 'password'} value={current} onChange={e => setCurrent(e.target.value)} placeholder="Current password" required
-              className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" />
-            <button type="button" onClick={() => setShowC(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">
-              {showC ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-1.5">New Password</label>
-          <div className="relative">
-            <input type={showN ? 'text' : 'password'} value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="New password" required
-              className="w-full rounded-xl bg-neutral-800 border border-[#e6e6e6]/20 px-4 py-2.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-[#e6e6e6] transition-colors" />
-            <button type="button" onClick={() => setShowN(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">
-              {showN ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          {newPwd && (
-            <div className="mt-2 flex gap-1">
-              {[1, 2, 3].map(i => <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= score ? colors[score] : 'bg-neutral-700'}`} />)}
-            </div>
-          )}
-        </div>
-        <FieldInput label="Confirm Password" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm new password" required />
-        <button type="submit" disabled={saving || !current || !newPwd || !confirm}
-          className="flex items-center gap-2 rounded-xl bg-[#e6e6e6] px-4 py-2 text-sm text-black font-medium hover:bg-[#d4d4d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />}
-          {saving ? 'Updating...' : 'Update Password'}
-        </button>
+    <div className="space-y-4 pb-8">
+      <SectionHeader icon={ShieldCheck} title="Security" subtitle="Manage your password and account safety" />
 
-        <div className="pt-4 border-t border-[#e6e6e6]/20">
-          <p className="text-xs font-medium text-neutral-400 mb-3">Danger Zone</p>
+      <div className="rounded-2xl bg-[#18181b] border border-[#27272a] overflow-hidden">
+        <div className="px-5 pt-5 pb-2">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-4">Change Password</p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <PwField label="Current Password" value={current} onChange={e => setCurrent(e.target.value)} show={showCurrent} onToggle={() => setShowCurrent(!showCurrent)} placeholder="••••••••" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <PwField label="New Password" value={newPwd} onChange={e => setNewPwd(e.target.value)} show={showNew} onToggle={() => setShowNew(!showNew)} placeholder="Min. 8 chars" />
+              <PwField label="Confirm New" value={confirm} onChange={e => setConfirm(e.target.value)} show={showNew} onToggle={() => setShowNew(!showNew)} placeholder="Re-type password" />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={saving}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 text-sm text-white font-bold hover:bg-white/10 transition-all disabled:opacity-50 mt-2"
+            >
+              {saving ? 'Updating...' : 'Change Password'}
+            </button>
+          </form>
+        </div>
+        
+        <div className="mt-6 border-t border-[#27272a] px-5 py-4 bg-red-950/10">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">Danger Zone</p>
+          </div>
           <DangerSection />
         </div>
-      </form>
-    </Card>
+      </div>
+    </div>
   )
 }
 
-/* ── Danger section (embedded in Security) ── */
+/* ─── Danger Zone Content ─── */
 function DangerSection() {
   const [showModal, setShowModal] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   async function handleDelete() {
-    if (confirmText !== user?.username) { toast.error('Username does not match'); return }
+    if (confirmText !== user?.username) return toast.error('Confirmation mismatch')
     setDeleting(true)
-    try { await usersApi.deleteAccount(); toast.success('Account deleted'); logout(); navigate('/login') }
-    catch { toast.error('Failed to delete'); setDeleting(false) }
+    try {
+      await usersApi.deleteAccount()
+      toast.success('Account permanently deleted')
+      logout()
+      navigate('/login')
+    } catch {
+      toast.error('Failed to delete account')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 rounded-xl bg-red-500/5 border border-red-500/20 px-4 py-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-white">Delete Account</p>
-          <p className="text-xs text-neutral-500 mt-0.5">This permanently deletes your account</p>
+          <p className="text-sm font-bold text-white">Delete Account</p>
+          <p className="text-xs text-neutral-500 mt-0.5">This action is permanent and cannot be undone.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="shrink-0 text-xs text-red-400 font-medium px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors">
-          Delete
+        <button 
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-900/20"
+        >
+          Deactivate
         </button>
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[#e6e6e6]/20">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-[#18181b] border border-[#27272a] shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#27272a]">
               <h2 className="text-sm font-semibold text-red-400 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" /> Confirm Deletion
               </h2>
-              <button onClick={() => { setShowModal(false); setConfirmText('') }} className="text-neutral-400 hover:text-white">
-                <X className="h-4 w-4" />
+              <button onClick={() => { setShowModal(false); setConfirmText('') }} className="text-neutral-500 hover:text-white transition-colors">
+                <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-5 space-y-3">
-              <p className="text-sm text-neutral-300">Type <strong className="text-white">{user?.username}</strong> to confirm.</p>
-              <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder={user?.username}
-                className="w-full rounded-xl bg-neutral-800 border border-red-500/30 px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none" />
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-neutral-300 leading-relaxed">
+                To confirm, please type your username <span className="font-mono font-bold text-white bg-white/10 px-1 rounded">{user?.username}</span> below:
+              </p>
+              <input
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                placeholder={user?.username}
+                className="w-full rounded-xl bg-[#0e0e10] border border-red-500/30 px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none font-mono"
+              />
               <div className="flex gap-3">
-                <button onClick={() => { setShowModal(false); setConfirmText('') }} className="flex-1 rounded-xl bg-neutral-800 py-2.5 text-sm text-neutral-300 hover:bg-neutral-700">Cancel</button>
-                <button onClick={handleDelete} disabled={confirmText !== user?.username || deleting}
-                  className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm text-white font-medium hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {deleting ? 'Deleting...' : 'Delete Forever'}
+                <button onClick={() => { setShowModal(false); setConfirmText('') }} className="flex-1 rounded-xl bg-neutral-800 py-2.5 text-sm text-neutral-300 hover:bg-neutral-700 transition-colors">Cancel</button>
+                <button 
+                  onClick={handleDelete} 
+                  disabled={confirmText !== user?.username || deleting}
+                  className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm text-white font-bold hover:bg-red-600 transition-colors disabled:opacity-30"
+                >
+                  {deleting ? 'Deleting...' : 'Confirm'}
                 </button>
               </div>
             </div>
@@ -234,156 +325,172 @@ function DangerSection() {
   )
 }
 
-/* ── Preferences Content ── */
+/* ─── Preferences Content ─── */
 function PreferencesContent() {
   const [desktop, setDesktop] = useState(() => localStorage.getItem('notif_desktop') === 'true')
   const [sound, setSound] = useState(() => localStorage.getItem('notif_sound') !== 'false')
-  const [preview, setPreview] = useState(() => localStorage.getItem('notif_preview') !== 'false')
-  const [accent, setAccent] = useState(() => localStorage.getItem('accent_color') || '#7C3AED')
-  const [fontSize, setFontSize] = useState(() => localStorage.getItem('font_size') || 'Medium')
+  const [theme, setTheme] = useState(() => localStorage.getItem('app_theme') || 'Monochrome')
 
-  function saveNotif(key, val, setter) {
-    setter(val); localStorage.setItem(key, val)
-    if (key === 'notif_desktop' && val) Notification.requestPermission()
-    toast.success('Saved')
-  }
-  function applyAccent(color) { setAccent(color); localStorage.setItem('accent_color', color); toast.success('Accent updated') }
-  function applySize(size) { setFontSize(size); localStorage.setItem('font_size', size); const m = { Small: '14px', Medium: '16px', Large: '18px' }; document.documentElement.style.fontSize = m[size]; toast.success('Font size updated') }
-
-  const ACCENTS = [
-    { value: '#7C3AED', label: 'Purple' }, { value: '#2563EB', label: 'Blue' },
-    { value: '#059669', label: 'Emerald' }, { value: '#DC2626', label: 'Red' },
-    { value: '#D97706', label: 'Amber' }, { value: '#DB2777', label: 'Pink' },
-  ]
-
-  return (
-    <>
-      <Card title="Notifications">
-        <Toggle checked={desktop} onChange={v => saveNotif('notif_desktop', v, setDesktop)} label="Desktop Notifications" description="Browser notifications for new messages" />
-        <div className="h-px bg-[#e6e6e6]/20" />
-        <Toggle checked={sound} onChange={v => saveNotif('notif_sound', v, setSound)} label="Sound Alerts" description="Play a sound on new messages" />
-        <div className="h-px bg-[#e6e6e6]/20" />
-        <Toggle checked={preview} onChange={v => saveNotif('notif_preview', v, setPreview)} label="Message Preview" description="Show message content in notifications" />
-      </Card>
-
-      <Card title="Appearance">
-        <p className="text-xs text-neutral-500 -mt-1">Accent Color</p>
-        <div className="grid grid-cols-3 gap-2">
-          {ACCENTS.map(({ value, label }) => (
-            <button key={value} onClick={() => applyAccent(value)} className={`flex items-center gap-2 rounded-xl p-2.5 border transition-all ${accent === value ? 'border-white/30 bg-neutral-800' : 'border-neutral-800 hover:border-neutral-700'}`}>
-              <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: value }} />
-              <span className="text-xs text-neutral-300 truncate">{label}</span>
-              {accent === value && <Check className="h-3 w-3 text-white ml-auto shrink-0" />}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-neutral-500">Font Size</p>
-        <div className="flex gap-2">
-          {['Small', 'Medium', 'Large'].map(s => (
-            <button key={s} onClick={() => applySize(s)} className={`flex-1 rounded-xl py-2 text-xs font-medium transition-all border ${fontSize === s ? 'bg-[#e6e6e6] border-[#e6e6e6] text-black' : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-600'}`}>{s}</button>
-          ))}
-        </div>
-      </Card>
-    </>
-  )
-}
-
-/* ── Flagged Messages (admin) ── */
-function FlaggedMessagesContent() {
-  const [messages, setMessages] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    fetch('http://localhost:5000/api/admin/flagged-messages', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('chat_token')}` }
+  const updatePref = (key, val, setter) => {
+    setter(val)
+    localStorage.setItem(key, val)
+    toast.success('Preference updated', {
+      position: "bottom-right",
+      autoClose: 1000,
+      hideProgressBar: true,
+      theme: "dark"
     })
-      .then(r => r.json())
-      .then(d => setMessages(d.data || []))
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) return (
-    <div className="flex justify-center py-12">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-700 border-t-[#e6e6e6]" />
-    </div>
-  )
-  if (error) return (
-    <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-6 text-center">
-      <ShieldOff className="h-8 w-8 text-neutral-600 mx-auto mb-2" />
-      <p className="text-sm text-neutral-400">Failed to load flagged messages</p>
-      <p className="text-xs text-neutral-600 mt-1">{error}</p>
-    </div>
-  )
+  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-4">
-        <Flag className="h-4 w-4 text-red-400" />
-        <h2 className="font-semibold text-white text-sm">Flagged Messages</h2>
-        <span className="ml-auto text-xs text-neutral-500">{messages.length} flagged</span>
+    <div className="space-y-4 pb-8">
+      <SectionHeader icon={SlidersHorizontal} title="Preferences" subtitle="Customize your ConvoX experience" />
+
+      {/* Notifications */}
+      <div className="rounded-2xl bg-[#18181b] border border-[#27272a] overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#27272a]">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Notifications</p>
+        </div>
+        <Toggle checked={desktop} onChange={v => updatePref('notif_desktop', v, setDesktop)} label="Desktop Notifications" description="Receive push notifications when you're not looking" />
+        <div className="h-px bg-[#27272a] mx-5" />
+        <Toggle checked={sound} onChange={v => updatePref('notif_sound', v, setSound)} label="Sound Effects" description="Play a subtle ping on incoming messages" />
       </div>
 
-      {messages.length === 0 ? (
-        <div className="rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-8 text-center">
-          <Flag className="h-10 w-10 text-neutral-700 mx-auto mb-3" />
-          <p className="text-sm font-medium text-white">No flagged messages</p>
-          <p className="text-xs text-neutral-500 mt-1">All clear — nothing to review</p>
+      {/* Appearance */}
+      <div className="rounded-2xl bg-[#18181b] border border-[#27272a] overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#27272a]">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Appearance</p>
         </div>
-      ) : messages.map((msg, i) => (
-        <div key={msg._id || i} className="rounded-xl bg-neutral-900 border border-[#e6e6e6]/20 p-4">
-          <div className="flex items-start gap-3">
-            <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-              <Flag className="h-3.5 w-3.5 text-red-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-xs font-medium text-white">{msg.sender?.username || 'Unknown'}</p>
-                <span className="text-[11px] text-neutral-600">
-                  {new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                </span>
-              </div>
-              <p className="text-sm text-neutral-300 leading-relaxed">{msg.messageText || msg.content || '—'}</p>
-              {msg.flagReason && <p className="mt-1.5 text-xs text-amber-500">Reason: {msg.flagReason}</p>}
+        <div className="p-5 space-y-4">
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-white">Theme Engine</p>
+            <div className="grid grid-cols-2 gap-3">
+              {['Monochrome', 'Deep Zinc'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => updatePref('app_theme', t, setTheme)}
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
+                    theme === t ? 'bg-[#e6e6e6] border-[#e6e6e6] text-black font-bold' : 'bg-[#0e0e10] border-[#27272a] text-neutral-400 hover:border-neutral-700'
+                  }`}
+                >
+                  <span className="text-xs tracking-tight">{t}</span>
+                  {theme === t && <Check className="h-3 w-3" />}
+                </button>
+              ))}
             </div>
           </div>
         </div>
-      ))}
+      </div>
     </div>
   )
 }
 
-/* ── Default (no page selected) ── */
+/* ─── Flagged Messages (Admin) ─── */
+function FlaggedMessagesContent() {
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <FlaggedMessagesTable />
+    </div>
+  )
+}
+
+/* ─── Default Content ─── */
 function DefaultContent({ user }) {
   return (
-    <div className="flex flex-col gap-4 items-start">
-      <div className="flex items-center gap-4 w-full rounded-2xl bg-neutral-900 border border-[#e6e6e6]/20 p-5">
-        <div className="h-14 w-14 rounded-2xl bg-[#e6e6e6] flex items-center justify-center text-black text-xl font-bold shrink-0">
-          {initials(user?.username)}
-        </div>
-        <div>
-          <p className="font-semibold text-white">{user?.username}</p>
-          <p className="text-sm text-neutral-400">{user?.email}</p>
+    <div className="space-y-6">
+      <div className="rounded-3xl bg-gradient-to-br from-neutral-800 to-[#18181b] border border-[#27272a] p-8 text-center relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.03),transparent)] pointer-events-none" />
+        <div className="relative">
+          <div className="h-20 w-20 rounded-2xl bg-[#e6e6e6] flex items-center justify-center text-black text-3xl font-bold mx-auto mb-6 shadow-2xl rotate-3 group-hover:rotate-0 transition-transform duration-500">
+            {user?.username?.charAt(0).toUpperCase()}
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2 underline decoration-[#e6e6e6]/20 underline-offset-8">Welcome, {user?.username}</h2>
+          <p className="text-neutral-400 max-w-xs mx-auto text-sm leading-relaxed">
+            Manage your account settings, security preferences, and privacy controls from the dashboard menu.
+          </p>
         </div>
       </div>
-      <p className="text-sm text-neutral-500 px-1">Select an option from the sidebar to manage your settings.</p>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="p-5 rounded-2xl bg-[#18181b] border border-[#27272a] group hover:border-neutral-500 transition-colors">
+          <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-bold text-white mb-1">Secure Account</p>
+          <p className="text-xs text-neutral-500">Your data is encrypted and saved locally.</p>
+        </div>
+        <div className="p-5 rounded-2xl bg-[#18181b] border border-[#27272a] group hover:border-neutral-500 transition-colors">
+          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-4">
+            <Check className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-bold text-white mb-1">Status Verified</p>
+          <p className="text-xs text-neutral-500">Your profile is currently active and public.</p>
+        </div>
+      </div>
     </div>
   )
 }
 
-/* ── Main SettingsView — no sub-nav, driven by selectedPage prop ── */
+/* ─── Main Component ─── */
 export default function SettingsView({ selectedPage }) {
   const { user } = useAuth()
+  const { socket } = useSocket()
+  const navigate = useNavigate()
+
+  // Real-time admin system notifications
+  useEffect(() => {
+    if (!socket) return
+
+    const handleWarning = ({ reason, count, type }) => {
+      const isBan = type === 'ban' || count >= 4
+      
+      toast(
+        <div className="flex flex-col gap-1 p-1">
+          <div className="flex items-center gap-2 font-bold text-white">
+            {isBan ? <Ban className="h-4 w-4 text-red-500" /> : <ShieldAlert className="h-4 w-4 text-amber-500" />}
+            {isBan ? 'ACCOUNT RESTRICTED' : 'FORMAL WARNING'}
+          </div>
+          <p className="text-xs text-neutral-300 leading-relaxed">
+            {isBan 
+              ? 'Your account has been banned due to repeated violations.' 
+              : `Warning ${count}/4: ${reason}`
+            }
+          </p>
+        </div>,
+        {
+          position: "top-center",
+          autoClose: isBan ? false : 8000,
+          theme: "dark",
+          className: "border border-red-500/20 bg-black/90 backdrop-blur-xl",
+          hideProgressBar: true
+        }
+      )
+
+      if (isBan) {
+        // Delay logout to let them read the toast
+        setTimeout(() => {
+          localStorage.removeItem('chat_token')
+          window.location.href = '/login' // Force hard reload to clear all state
+        }, 5000)
+      }
+    }
+
+    socket.on('admin_warning', handleWarning)
+    return () => { socket.off('admin_warning') }
+  }, [socket])
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-lg">
-        {!selectedPage && <DefaultContent user={user} />}
+    <div className={`h-full ${selectedPage === 'admin' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+      <div className={`mx-auto w-full p-4 sm:p-8 ${selectedPage === 'admin' ? 'max-w-none h-full' : 'max-w-3xl'}`}>
         {selectedPage === 'profile' && <ProfileContent user={user} />}
         {selectedPage === 'security' && <SecurityContent />}
         {selectedPage === 'preferences' && <PreferencesContent />}
-        {selectedPage === 'admin' && <FlaggedMessagesContent />}
+        {selectedPage === 'admin' && (
+          <div className="flex-1 min-h-0 p-1">
+            <FlaggedMessagesContent />
+          </div>
+        )}
+        {!selectedPage && <DefaultContent user={user} />}
       </div>
     </div>
   )

@@ -111,7 +111,17 @@ const getUserById = async (req, res) => {
       if (myReq) friendStatus = 'pending';
     }
 
-    return res.json({ success: true, data: { user: safeUser(targetUser), friendStatus } });
+    const { Message, Chat } = require('../models');
+    const [totalMessages, totalChats] = await Promise.all([
+      Message.countDocuments({ sender: targetUser._id }),
+      Chat.countDocuments({ 'participants.user': targetUser._id })
+    ]);
+    
+    const safeT = safeUser(targetUser);
+    safeT.totalMessages = totalMessages;
+    safeT.totalChats = totalChats;
+
+    return res.json({ success: true, data: { user: safeT, friendStatus } });
   } catch (err) {
     console.error('getUserById error:', err);
     return res.status(500).json({ success: false, message: 'Server error' });
@@ -277,6 +287,51 @@ const uploadBanner = [
   }
 ];
 
+// ── GET /api/users/suggestions  ───────────────────────────────────────────────────
+const getFriendSuggestions = async (req, res) => {
+  try {
+    const me = await User.findById(req.user._id).lean();
+    if (!me) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    const myFriends = me.friends || [];
+    if (myFriends.length === 0) {
+      return res.json({ success: true, data: { suggestions: [] } });
+    }
+    
+    // Find users who are not me, not already my friends, and share at least one friend
+    const potentialSuggestions = await User.find({
+      _id: { $ne: me._id, $nin: myFriends },
+      friends: { $in: myFriends },
+      isActive: true
+    }).populate('friends', '_id').lean();
+    
+    // Filter out users we already have pending friend requests with
+    const filtered = potentialSuggestions.filter(u => {
+      const theirReq = u.friendRequests?.find(r => r.from && r.from.toString() === me._id.toString() && r.status === 'pending');
+      const myReq = me.friendRequests?.find(r => r.from && r.from.toString() === u._id.toString() && r.status === 'pending');
+      return (!theirReq && !myReq);
+    });
+    
+    const suggestions = filtered.map(u => {
+      // Find intersection count manually
+      const mutualFriends = (u.friends || []).filter(f => 
+        myFriends.some(myF => myF.toString() === (f._id || f).toString())
+      );
+      
+      const safeU = safeUser(u);
+      safeU.mutualCount = mutualFriends.length;
+      return safeU;
+    })
+    .sort((a, b) => b.mutualCount - a.mutualCount)
+    .slice(0, 5);
+
+    return res.json({ success: true, data: { suggestions } });
+  } catch (err) {
+    console.error('getFriendSuggestions error:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getFriends,
@@ -290,4 +345,5 @@ module.exports = {
   rejectFriendRequest,
   uploadAvatar,
   uploadBanner,
+  getFriendSuggestions,
 };

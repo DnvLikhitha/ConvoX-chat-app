@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { usersApi } from '../../services/api'
-import { Mail, CalendarDays, Key, MapPin, Hash } from 'lucide-react'
+import { Mail, CalendarDays, Key, MapPin, Hash, MessageSquare } from 'lucide-react'
 import { resolveUrl } from '../../utils/resolveUrl'
 
 function initials(name) {
@@ -8,7 +8,7 @@ function initials(name) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')
 }
 
-export default function ProfilePreviewModal({ userId, position, onClose }) {
+export default function ProfilePreviewModal({ userId, position, onClose, onMessageClick }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -123,6 +123,22 @@ export default function ProfilePreviewModal({ userId, position, onClose }) {
                  {profile.user.bio || "No bio right now"}
                </p>
             </div>
+
+            {profile.friendStatus === 'friend' && (
+               <div className="mt-4 pt-4 border-t border-[#27272a]">
+                 <button 
+                   onClick={() => {
+                     if (onMessageClick) onMessageClick(profile.user);
+                     else window.dispatchEvent(new CustomEvent('open-dm', { detail: { user: profile.user } }));
+                     if (onClose) onClose();
+                   }}
+                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#e6e6e6] hover:bg-white text-black font-semibold rounded-lg transition-colors"
+                 >
+                   <MessageSquare className="w-4 h-4" />
+                   Message
+                 </button>
+               </div>
+            )}
           </div>
         </div>
       ) : (

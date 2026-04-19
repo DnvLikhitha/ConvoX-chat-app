@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/useAuth";
 import { useSidebar } from "../../contexts/SidebarContext";
 import { useSocket } from "../../contexts/SocketContext";
 import { resolveUrl } from "../../utils/resolveUrl";
-
+import { Phone, Video, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, Flag as FlagIcon, X, AlertTriangle, ShieldOff } from "lucide-react";
 import DashboardView from "../views/DashboardView";
 import SettingsView from "../views/SettingsView";
 import MediaView from "../views/MediaView";
@@ -127,7 +127,7 @@ function AvatarCircle() {
   );
 }
 /* ------------------------------ Users List ----------------------------- */
-function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSelectUser, onUserContextMenu }) {
+function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSelectUser, onUserContextMenu, unreadCounts = {} }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -144,7 +144,7 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
           setLoading(false);
           return;
         }
-        const response = await fetch("http://localhost:5000/api/users", {
+        const response = await fetch("http://localhost:5000/api/users/friends", {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -157,8 +157,8 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
         }
         
         const data = await response.json();
-        // API returns { success, data: { users } }
-        setUsers(data.data?.users || data.data || []);
+        // API returns { success, data: { friends } }
+        setUsers(data.data?.friends || data.data?.users || data.data || []);
         setError(null);
       } catch (err) {
         console.error("Error fetching users:", err);
@@ -256,13 +256,18 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
               {u.status || "offline"}
             </div>
           </div>
+          {unreadCounts[u._id || u.id] > 0 && (
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white shrink-0">
+              {unreadCounts[u._id || u.id]}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
 /* ------------------------------ Groups List ----------------------------- */
-function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, onSelectGroup, refreshKey = 0 }) {
+function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, onSelectGroup, refreshKey = 0, unreadCounts = {} }) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -362,10 +367,10 @@ function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, on
             key={g._id || g.chatId}
             onClick={() => onSelectGroup(g.chatId || g._id)}
             className={`mx-2 p-3 rounded-lg cursor-pointer transition flex items-center gap-3 ${
-              isSelected ? 'bg-violet-600/20 border border-violet-600/30' : 'bg-neutral-800/50 hover:bg-neutral-800'
+              isSelected ? 'bg-[#e6e6e6]/10 border border-[#e6e6e6]/20' : 'bg-neutral-800/50 hover:bg-neutral-800'
             }`}
           >
-            <div className="w-8 h-8 rounded-full bg-violet-600/20 flex items-center justify-center text-sm text-violet-300 font-semibold overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-sm text-[#e6e6e6] font-semibold overflow-hidden">
               {g.avatar ? (
                 <img src={resolveUrl(g.avatar)} alt={g.chatName} className="w-full h-full object-cover" />
               ) : (
@@ -380,6 +385,11 @@ function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, on
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </div>
             </div>
+            {unreadCounts[g._id || g.chatId] > 0 && (
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white shrink-0">
+                {unreadCounts[g._id || g.chatId]}
+              </div>
+            )}
           </div>
         );
       })}
@@ -511,7 +521,6 @@ function getSidebarContent(activeSection, isAdmin = false) {
         {
           title: "Account",
           items: [
-            { icon: <UserIcon size={16} className="text-neutral-50" />, label: "View Profile", settingsPage: "view-profile" },
             { icon: <UserIcon size={16} className="text-neutral-50" />, label: "Edit Profile", settingsPage: "profile" },
             { icon: <Security size={16} className="text-neutral-50" />, label: "Security", settingsPage: "security" },
           ],
@@ -556,7 +565,7 @@ function IconNavigation({ activeSection, onSectionChange }) {
     { id: "settings", icon: <SettingsIcon size={16} />, label: "Settings" },
   ];
   return (
-    <aside className="bg-[#0f0f11] flex flex-col gap-2 items-center p-4 w-16 border-r border-[#27272a]">
+    <aside className="bg-black/40 backdrop-blur-md flex flex-col gap-2 items-center p-4 w-16 border-r border-[#27272a]">
       <div className="mb-2 size-10 flex items-center justify-center">
         <div className="size-7">
           <InterfacesLogoSquare />
@@ -624,7 +633,7 @@ function SectionTitle({ title, onToggleCollapse, isCollapsed }) {
     </div>
   );
 }
-function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser, selectedGroup, onSelectGroup, selectedDashboardView, onDashboardViewChange, groupRefreshKey = 0, onUserContextMenu }) {
+function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSettingsPageSelect, selectedUser, onSelectUser, selectedGroup, onSelectGroup, selectedDashboardView, onDashboardViewChange, groupRefreshKey = 0, onUserContextMenu, unreadCounts = {} }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState(new Set());
@@ -672,9 +681,10 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
             selectedUser={selectedUser} 
             onSelectUser={onSelectUser}
             onUserContextMenu={onUserContextMenu}
+            unreadCounts={unreadCounts}
           />
         ) : activeSection === "groups" ? (
-          <GroupsList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedGroup={selectedGroup} onSelectGroup={onSelectGroup} refreshKey={groupRefreshKey} />
+          <GroupsList searchQuery={searchQuery} activeSection={activeSection} isCollapsed={isCollapsed} selectedGroup={selectedGroup} onSelectGroup={onSelectGroup} refreshKey={groupRefreshKey} unreadCounts={unreadCounts} />
         ) : (
           <>
             {content.sections.map((section, index) => (
@@ -874,7 +884,7 @@ function ProfileSettingsPage() {
             type="text"
             value={profile.username}
             onChange={(e) => handleChange("username", e.target.value)}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-violet-500"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-[#e6e6e6]"
           />
         </div>
         
@@ -892,7 +902,7 @@ function ProfileSettingsPage() {
           <select
             value={profile.status}
             onChange={(e) => handleChange("status", e.target.value)}
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-violet-500"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-[#e6e6e6]"
           >
             <option>Available</option>
             <option>Busy</option>
@@ -901,7 +911,7 @@ function ProfileSettingsPage() {
           </select>
         </div>
       </div>
-      <button className="mt-4 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition">
+      <button className="mt-4 px-6 py-3 bg-[#e6e6e6] hover:bg-white text-black rounded-lg font-medium transition">
         💾 Save Changes
       </button>
     </div>
@@ -928,7 +938,7 @@ function SecuritySettingsPage() {
             value={passwords.current}
             onChange={(e) => handleChange("current", e.target.value)}
             placeholder="Enter current password"
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-red-500 placeholder:text-neutral-600"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-[#e6e6e6] placeholder:text-neutral-600"
           />
         </div>
         <div>
@@ -938,7 +948,7 @@ function SecuritySettingsPage() {
             value={passwords.new}
             onChange={(e) => handleChange("new", e.target.value)}
             placeholder="Enter new password"
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-red-500 placeholder:text-neutral-600"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-[#e6e6e6] placeholder:text-neutral-600"
           />
         </div>
         <div>
@@ -948,11 +958,11 @@ function SecuritySettingsPage() {
             value={passwords.confirm}
             onChange={(e) => handleChange("confirm", e.target.value)}
             placeholder="Confirm new password"
-            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-red-500 placeholder:text-neutral-600"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-neutral-50 focus:outline-none focus:border-[#e6e6e6] placeholder:text-neutral-600"
           />
         </div>
       </div>
-      <button className="mt-4 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
+      <button className="mt-4 px-6 py-3 bg-[#e6e6e6] hover:bg-white text-black rounded-lg font-medium transition">
         🔐 Update Password
       </button>
     </div>
@@ -976,11 +986,11 @@ function PreferencesSettingsPage() {
           <button
             onClick={() => togglePreference("darkMode")}
             className={`w-12 h-6 rounded-full transition ${
-              preferences.darkMode ? "bg-violet-600" : "bg-neutral-600"
+              preferences.darkMode ? "bg-[#e6e6e6]" : "bg-neutral-600"
             }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white transition transform ${
+              className={`w-5 h-5 rounded-full bg-black transition transform ${
                 preferences.darkMode ? "translate-x-6" : "translate-x-0.5"
               }`}
             />
@@ -991,11 +1001,11 @@ function PreferencesSettingsPage() {
           <button
             onClick={() => togglePreference("notifications")}
             className={`w-12 h-6 rounded-full transition ${
-              preferences.notifications ? "bg-violet-600" : "bg-neutral-600"
+              preferences.notifications ? "bg-[#e6e6e6]" : "bg-neutral-600"
             }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white transition transform ${
+              className={`w-5 h-5 rounded-full bg-black transition transform ${
                 preferences.notifications ? "translate-x-6" : "translate-x-0.5"
               }`}
             />
@@ -1006,18 +1016,18 @@ function PreferencesSettingsPage() {
           <button
             onClick={() => togglePreference("readReceipts")}
             className={`w-12 h-6 rounded-full transition ${
-              preferences.readReceipts ? "bg-violet-600" : "bg-neutral-600"
+              preferences.readReceipts ? "bg-[#e6e6e6]" : "bg-neutral-600"
             }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white transition transform ${
+              className={`w-5 h-5 rounded-full bg-black transition transform ${
                 preferences.readReceipts ? "translate-x-6" : "translate-x-0.5"
               }`}
             />
           </button>
         </div>
       </div>
-      <button className="mt-4 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition">
+      <button className="mt-4 px-6 py-3 bg-[#e6e6e6] hover:bg-white text-black rounded-lg font-medium transition">
         💾 Save Preferences
       </button>
     </div>
@@ -1254,7 +1264,67 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
   const [activeChatId, setActiveChatId] = useState(null);
   const fileInputRef = React.useRef(null);
   const bottomRef = React.useRef(null);
+  const { user } = useAuth();
   const { socket, connected } = useSocket();
+
+  const [chatBackground, setChatBackground] = useState(() => localStorage.getItem('custom_chat_bg'));
+  const [showMenu, setShowMenu] = useState(false);
+  const themeInputRef = React.useRef(null);
+  const [flagDialog, setFlagDialog] = useState({ open: false, messageId: null });
+  const [flagReason, setFlagReason] = useState('');
+  const [flagging, setFlagging] = useState(false);
+
+  const REASON_MAP = {
+    'Cyberbullying': 'harassment',
+    'Harassment': 'harassment',
+    'Hate Speech': 'hate_speech',
+    'Spam': 'spam',
+    'Threats': 'violence',
+    'Other': 'other',
+  };
+
+  const handleFlagMessage = async () => {
+    if (!flagDialog.messageId || !flagReason.trim()) return;
+    setFlagging(true);
+    try {
+      const token = localStorage.getItem('chat_token');
+      const enumReason = REASON_MAP[flagReason] || 'other';
+      const res = await fetch(`http://localhost:5000/api/chats/messages/${flagDialog.messageId}/flag`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: enumReason, description: flagReason }),
+      });
+      if (res.ok) {
+        setFlagDialog({ open: false, messageId: null });
+        setFlagReason('');
+        alert('✅ Message reported. Admins will review it.');
+      } else {
+        const err = await res.json();
+        alert('Failed to report: ' + (err.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Failed to flag:', err);
+      alert('Failed to submit report.');
+    } finally {
+      setFlagging(false);
+    }
+  };
+
+  const handleBackgroundUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        localStorage.setItem('custom_chat_bg', reader.result);
+        setChatBackground(reader.result);
+      } catch (err) {
+        alert('Image too large for local storage. Please try a smaller image.');
+      }
+    };
+    reader.readAsDataURL(file);
+    setShowMenu(false);
+  };
 
   // Load messages
   React.useEffect(() => {
@@ -1288,16 +1358,30 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     loadMessages();
   }, [selectedUser]);
 
-  // Socket: join room & listen for new messages
+  // Socket: join room & listen for new messages + read receipts
   React.useEffect(() => {
     if (!socket || !connected || !activeChatId) return;
     socket.emit('join_room', activeChatId);
+    // Mark messages as read when user opens the chat
+    socket.emit('messages_read', { chatId: activeChatId });
+    
     const onMsg = (msg) => {
       if (msg.chatId !== activeChatId) return;
       setMessages(prev => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
     };
+    const onStatusUpdate = ({ chatId, status }) => {
+      if (chatId !== activeChatId) return;
+      setMessages(prev => prev.map(m => {
+        const isMsgMine = m.isCurrentUser || (user && ((m.sender?._id || m.sender) === user._id || (m.sender?._id || m.sender) === user.id));
+        if (isMsgMine && (m.status === 'sent' || m.status === 'delivered')) {
+          return { ...m, status };
+        }
+        return m;
+      }));
+    };
     socket.on('new_message', onMsg);
-    return () => socket.off('new_message', onMsg);
+    socket.on('messages_status_update', onStatusUpdate);
+    return () => { socket.off('new_message', onMsg); socket.off('messages_status_update', onStatusUpdate); };
   }, [socket, connected, activeChatId]);
 
   // Auto-scroll
@@ -1305,6 +1389,20 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
 
   const handleSendMessage = async () => {
     if (!selectedUser || !newMessage.trim()) return;
+    const textToSend = newMessage;
+    setNewMessage(""); // Clear input immediately for snappy UX
+
+    // Optimistic message — shown immediately with 'sent' tick
+    const optimisticMsg = {
+      _id: `optimistic-${Date.now()}`,
+      content: textToSend,
+      isCurrentUser: true,
+      status: 'sent',
+      timestamp: new Date().toISOString(),
+      messageType: 'text',
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+
     try {
       const token = localStorage.getItem("chat_token");
       const userId = selectedUser._id || selectedUser.id;
@@ -1314,20 +1412,22 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          content: newMessage,
-        }),
+        body: JSON.stringify({ content: textToSend }),
       });
       if (response.ok) {
         const data = await response.json();
-        setMessages([...messages, data.data]);
-        setNewMessage("");
+        const serverMsg = { ...data.data, status: data.data?.status || 'sent' };
+        // Replace optimistic message with real server message
+        setMessages(prev => prev.map(m => m._id === optimisticMsg._id ? serverMsg : m));
+        if (serverMsg.chatId && !activeChatId) setActiveChatId(serverMsg.chatId);
       } else {
+        // Remove optimistic message on failure
+        setMessages(prev => prev.filter(m => m._id !== optimisticMsg._id));
         const error = await response.json();
         console.error("Error response:", error);
-        console.error("Error details:", error.details || error.message);
       }
     } catch (err) {
+      setMessages(prev => prev.filter(m => m._id !== optimisticMsg._id));
       console.error("Error sending message:", err);
     }
   };
@@ -1362,129 +1462,364 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
   };
   if (!selectedUser) {
     return (
-      <div className="flex flex-col h-full items-center justify-center gap-4">
-        <p className="text-neutral-400 text-lg">Select a user to start chatting</p>
-        <p className="text-neutral-500 text-sm">Click on a user from the list on the left</p>
+      <div className="flex flex-col h-full bg-[#18181b]/50 items-center justify-center gap-4 rounded-xl border border-[#27272a] shadow-inner m-4">
+        <div className="w-20 h-20 bg-neutral-800 rounded-full flex items-center justify-center mb-4">
+           <MessageSquare className="w-10 h-10 text-neutral-500" />
+        </div>
+        <p className="text-[#e6e6e6] text-xl font-bold tracking-tight">Select a user to start chatting</p>
+        <p className="text-neutral-500 text-sm">Choose someone from the list on the left to view your message history.</p>
       </div>
     );
   }
+
+  // Generate an avatar initial text
+  const getInitials = (name) => name?.charAt(0).toUpperCase() || "U";
+  
   return (
-    <div className="flex flex-col h-full gap-4">
-      <div className="flex items-center gap-3 pb-4 border-b border-neutral-800">
-        <div 
-          className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-sm text-neutral-400 overflow-hidden cursor-context-menu"
-          onContextMenu={(e) => onUserContextMenu?.(e, selectedUser._id || selectedUser.id)}
-        >
-          {selectedUser.avatar ? (
-            <img src={resolveUrl(selectedUser.avatar)} alt={selectedUser.username} className="w-full h-full object-cover" />
-          ) : (
-            selectedUser.username?.charAt(0).toUpperCase() || "U"
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a] bg-transparent shrink-0">
+        <div className="flex items-center gap-4">
+          <div 
+            className="w-12 h-12 relative flex-shrink-0 cursor-context-menu outline-none"
+            onContextMenu={(e) => onUserContextMenu?.(e, selectedUser._id || selectedUser.id)}
+          >
+             <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-neutral-800 text-[#e6e6e6] font-bold text-lg ring-2 ring-transparent hover:ring-neutral-700 transition-all">
+               {selectedUser.avatar ? (
+                  <img src={resolveUrl(selectedUser.avatar)} alt={selectedUser.username} className="w-full h-full object-cover" />
+               ) : getInitials(selectedUser.username)}
+             </div>
+             <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-[2.5px] border-[#0f0f11] ${selectedUser.status === 'online' ? 'bg-emerald-500' : selectedUser.status === 'away' ? 'bg-amber-500' : 'bg-neutral-500'}`} />
+          </div>
+          <div>
+            <div className="font-['Lexend:Bold',_sans-serif] text-[16px] text-[#e6e6e6] mb-0.5">{selectedUser.username || "Unknown"}</div>
+            <div className="font-['Lexend:Regular',_sans-serif] text-[13px] text-neutral-400 capitalize">{selectedUser.status || "offline"}</div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <button onClick={() => setShowMenu(!showMenu)} className="p-2 text-neutral-400 hover:text-white hover:bg-[#27272a] rounded-xl transition">
+            <MoreVertical className="w-5 h-5" />
+          </button>
+          
+          {showMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-[#18181b] border border-[#27272a] rounded-xl shadow-xl overflow-hidden z-20">
+              <div className="px-4 py-2 border-b border-[#27272a]">
+                <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Chat Theme</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setChatBackground(null);
+                  localStorage.removeItem('custom_chat_bg');
+                  setShowMenu(false);
+                }} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
+              >
+                Default Theme
+                {!chatBackground && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => {
+                  const theme = "theme-rain";
+                  setChatBackground(theme);
+                  localStorage.setItem('custom_chat_bg', theme);
+                  setShowMenu(false);
+                }} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
+              >
+                Rain Theme
+                {chatBackground === "theme-rain" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => {
+                  const theme = "theme-love";
+                  setChatBackground(theme);
+                  localStorage.setItem('custom_chat_bg', theme);
+                  setShowMenu(false);
+                }} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
+              >
+                Love Theme
+                {chatBackground === "theme-love" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+            </div>
           )}
         </div>
-        <div className="flex-1">
-          <div className="font-['Lexend:SemiBold',_sans-serif] text-[14px] text-neutral-50">{selectedUser.username || "Unknown"}</div>
-          <div className="font-['Lexend:Regular',_sans-serif] text-[12px] text-neutral-400">{selectedUser.status || "offline"}</div>
-        </div>
       </div>
-      <div className="flex-1 overflow-y-auto space-y-3">
+      
+      {/* Messages View */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 border-transparent relative group chat-scroll-area">
+        {chatBackground === 'theme-rain' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(180deg, #182230 0%, #0d1117 100%)' }} />
+        )}
+        {chatBackground === 'theme-love' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(135deg, #3d0d24 0%, #09090b 100%)' }} />
+        )}
+        
+        <div className="relative z-10 w-full h-full min-h-full space-y-6 flex flex-col">
         {loading ? (
-          <p className="text-neutral-400 text-sm">Loading messages...</p>
+          <div className="absolute inset-0 flex items-center justify-center">
+             <div className="w-8 h-8 rounded-full border-4 border-neutral-800 border-t-neutral-400 animate-spin" />
+          </div>
         ) : messages.length === 0 ? (
-          <p className="text-neutral-400 text-sm">No messages yet. Start the conversation!</p>
+          <div className="my-auto flex flex-col items-center justify-center text-center max-w-sm mx-auto p-6 rounded-2xl bg-[#18181b]/80 border border-[#27272a] shadow-lg backdrop-blur-sm">
+             <div className="w-24 h-24 bg-[#09090b] rounded-full flex items-center justify-center mb-6 shadow-inner">
+                 {selectedUser.avatar ? (
+                   <img src={resolveUrl(selectedUser.avatar)} className="w-full h-full object-cover rounded-full opacity-60 grayscale" alt="" />
+                 ) : (
+                   <div className="w-full h-full bg-[#18181b] rounded-full flex items-center justify-center text-3xl font-bold text-neutral-600 border border-[#27272a]">{getInitials(selectedUser.username)}</div>
+                 )}
+             </div>
+             <p className="text-[#e6e6e6] text-lg font-bold mb-2">Say hi to {selectedUser.username}!</p>
+             <p className="text-sm text-neutral-500 mb-6">You've reached the start of your message history.</p>
+          </div>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, idx) => {
             const isImage = msg.messageType === 'file' && msg.fileUrl && (msg.fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i));
             
-            if (isImage) {
-              return (
-                <div key={msg._id || msg.id} className={`flex ${msg.isCurrentUser ? "justify-end" : "justify-start"}`}>
-                  <div onClick={() => setFullscreenImage(`http://localhost:5000${msg.fileUrl}`)} className="cursor-pointer hover:opacity-90 transition">
-                    <img src={`http://localhost:5000${msg.fileUrl}`} alt={msg.fileName} className="max-w-xs rounded-lg" />
-                  </div>
-                </div>
-              );
-            }
+            const isMe = msg.isCurrentUser || (user && ((msg.sender?._id || msg.sender) === user._id || (msg.sender?._id || msg.sender) === user.id)) || false;
             
+            const isLast = idx === messages.length - 1 || messages[idx+1].sender !== msg.sender;
+            
+            // Date formatting
+            let showDateBadge = false;
+            let dateLabel = '';
+            
+            if (msg.timestamp) {
+               const msgDate = new Date(msg.timestamp);
+               const today = new Date();
+               const yesterday = new Date(today);
+               yesterday.setDate(yesterday.getDate() - 1);
+               
+               if (msgDate.toDateString() === today.toDateString()) dateLabel = 'Today';
+               else if (msgDate.toDateString() === yesterday.toDateString()) dateLabel = 'Yesterday';
+               else dateLabel = msgDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: msgDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+               
+               if (idx === 0) {
+                 showDateBadge = true;
+               } else {
+                 const prevDate = new Date(messages[idx-1].timestamp);
+                 if (msgDate.toDateString() !== prevDate.toDateString()) {
+                   showDateBadge = true;
+                 }
+               }
+            } else if (msg._id && msg._id.toString().startsWith('optimistic')) {
+               // Optimistic messages are assumed to be today
+               dateLabel = 'Today';
+               if (idx > 0) {
+                 const prevDate = new Date(messages[idx-1].timestamp);
+                 if (prevDate.toDateString() !== new Date().toDateString()) {
+                   showDateBadge = true;
+                 }
+               } else {
+                 showDateBadge = true;
+               }
+            }
+
             return (
-              <div key={msg._id || msg.id} className={`flex ${msg.isCurrentUser ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-xs px-4 py-2 rounded-lg ${
-                  msg.isCurrentUser 
-                    ? "text-black" 
-                    : "bg-neutral-800 text-neutral-300"
-                }`}
-                style={msg.isCurrentUser ? { backgroundColor: "#e6e6e6" } : {}}
-                >
-                  {msg.messageType === 'file' ? (
-                    <a 
-                      href={`http://localhost:5000${msg.fileUrl}`} 
-                      download={msg.fileName}
-                      className="flex items-center gap-2 hover:underline text-blue-300"
-                    >
-                      <span>📎</span>
-                      <span className="text-sm truncate">{msg.fileName || 'Download file'}</span>
-                    </a>
-                  ) : (
-                    <p className="text-sm">{msg.content}</p>
-                  )}
-                  <p className="text-xs opacity-70 mt-1">{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+              <div key={msg._id || msg.id} className="w-full group">
+                {showDateBadge && (
+                   <div className="flex justify-center my-6">
+                      <span className="px-3 py-1 bg-[#18181b]/90 border border-[#27272a] text-neutral-400 text-[11px] font-semibold tracking-wider uppercase rounded-full shadow-sm backdrop-blur-md">
+                         {dateLabel}
+                      </span>
+                   </div>
+                )}
+                <div className={`flex w-full ${isMe ? "justify-end" : "justify-start"} ${!showDateBadge && (idx > 0 && messages[idx-1].sender === msg.sender) ? 'mt-1' : 'mt-4'}`}>
+                  <div className={`flex flex-col relative max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
+                    {/* Admin deleted message placeholder */}
+                    {msg.deletedByAdmin ? (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-800/60 border border-neutral-700/40">
+                        <ShieldOff className="w-4 h-4 text-neutral-500 shrink-0" />
+                        <span className="text-xs text-neutral-500 italic">This message was removed by an admin</span>
+                      </div>
+                    ) : isImage ? (
+                      <div onClick={() => setFullscreenImage(`http://localhost:5000${msg.fileUrl}`)} className={`cursor-pointer hover:opacity-90 transition rounded-xl overflow-hidden border ${isMe ? 'border-neutral-700' : 'border-[#27272a]'}`}>
+                        <img src={`http://localhost:5000${msg.fileUrl}`} alt={msg.fileName} className="max-w-xs object-cover" />
+                      </div>
+                    ) : (
+                      <div className={`px-4 py-2.5 shadow-sm leading-relaxed text-[15px] ${
+                        isMe 
+                          ? "bg-[#e6e6e6] text-black" 
+                          : "bg-[#27272a] text-[#e6e6e6]"
+                      } ${
+                        isMe 
+                          ? `rounded-l-2xl rounded-tr-2xl ${isLast ? 'rounded-br-sm' : 'rounded-br-xl'}` 
+                          : `rounded-r-2xl rounded-tl-2xl ${isLast ? 'rounded-bl-sm' : 'rounded-bl-xl'}`
+                      }`}>
+                        {msg.messageType === 'file' ? (
+                          <a 
+                            href={`http://localhost:5000${msg.fileUrl}`} 
+                            download={msg.fileName}
+                            className={`flex items-center gap-3 font-medium hover:underline ${isMe ? 'text-black/80' : 'text-blue-400'}`}
+                          >
+                            <div className={`p-2 rounded-lg ${isMe ? 'bg-black/10' : 'bg-[#e6e6e6]/10'}`}>
+                               <Paperclip className="w-4 h-4" />
+                            </div>
+                            <span className="truncate max-w-[200px]">{msg.fileName || 'Download file'}</span>
+                          </a>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Flag Button */}
+                    {!isMe && (
+                      <button 
+                        onClick={() => setFlagDialog({ open: true, messageId: msg._id || msg.id })}
+                        className="absolute -left-8 top-2 p-1.5 text-neutral-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Flag className="w-4 h-4" />
+                      </button>
+                    )}
+                    
+                    {/* Meta */}
+                    {isLast && (
+                      <div className={`flex items-center gap-1 mt-1 text-[10px] text-neutral-500 font-medium px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                         <span>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                         {isMe && (
+                            msg.status === 'read' ? <CheckCheck className="w-3 h-3 text-blue-500" /> :
+                            msg.status === 'delivered' ? <CheckCheck className="w-3 h-3" /> :
+                            <Check className="w-3 h-3" />
+                         )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })
         )}
+        <div ref={bottomRef} className="h-4" />
+        </div>
       </div>
-      <div ref={bottomRef} />
-      <Field orientation="horizontal" className="pt-4 border-t border-neutral-800 gap-2 items-center">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          className="hidden"
-          accept="*/*"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-3 py-3 bg-[#e6e6e6]/20 hover:bg-[#e6e6e6]/30 text-[#e6e6e6] rounded-lg font-medium transition flex items-center justify-center flex-shrink-0 hover:scale-110 duration-200"
-          title="Attach file"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
-        <Input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-          placeholder="Type a message..."
-          className="h-10"
-        />
-        <Button
-          onClick={handleSendMessage}
-          className="bg-[#e6e6e6] hover:bg-[#d4d4d4] text-black font-medium transition"
-        >
-          Send
-        </Button>
-      </Field>
+
+      {/* Flag / Report Modal */}
+      {flagDialog.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setFlagDialog({ open: false, messageId: null })}>
+          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-[#e6e6e6] font-semibold text-sm">Report Message</h3>
+                <p className="text-neutral-500 text-xs">Admins will review this report</p>
+              </div>
+              <button onClick={() => setFlagDialog({ open: false, messageId: null })} className="ml-auto text-neutral-500 hover:text-white transition">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 mb-4">
+              {['Cyberbullying', 'Harassment', 'Hate Speech', 'Spam', 'Threats', 'Other'].map(r => (
+                <button
+                  key={r}
+                  onClick={() => setFlagReason(r)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all border ${
+                    flagReason === r
+                      ? 'bg-red-500/10 border-red-500/40 text-red-300'
+                      : 'bg-neutral-800/50 border-neutral-700 text-neutral-300 hover:border-neutral-600'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFlagDialog({ open: false, messageId: null })}
+                className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-sm hover:bg-neutral-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFlagMessage}
+                disabled={!flagReason || flagging}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {flagging ? 'Reporting...' : 'Submit Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Input Area */}
+      <div className="p-4 bg-transparent z-10 w-full shrink-0 border-t border-[#27272a]">
+        <div className="flex items-end gap-2 bg-[#18181b] border border-[#27272a] rounded-2xl p-2 focus-within:border-neutral-500 focus-within:shadow-sm focus-within:shadow-black transition-all">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="*/*"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2.5 text-neutral-400 hover:text-[#e6e6e6] hover:bg-[#27272a] rounded-xl transition-colors shrink-0 mb-0.5"
+            title="Attach file"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+          
+          <textarea
+            value={newMessage}
+            onChange={(e) => {
+               setNewMessage(e.target.value);
+               e.target.style.height = 'auto';
+               e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+            }}
+            onKeyPress={(e) => {
+               if (e.key === "Enter" && !e.shiftKey) {
+                 e.preventDefault();
+                 handleSendMessage();
+                 e.target.style.height = 'auto';
+               }
+            }}
+            placeholder="Write a message..."
+            className="flex-1 bg-transparent border-none focus:outline-none text-[#e6e6e6] placeholder-neutral-500 block w-full resize-none py-2.5 min-h-[44px] max-h-[120px]"
+            rows={1}
+            style={{ overflowY: newMessage.split('\\n').length > 4 ? 'auto' : 'hidden' }}
+          />
+
+          <button
+            onClick={() => {
+              handleSendMessage();
+            }}
+            disabled={!newMessage.trim()}
+            className={`p-2.5 rounded-xl flex items-center justify-center flex-shrink-0 transition-all mb-0.5 ml-1 ${
+              newMessage.trim() 
+                ? "bg-[#e6e6e6] text-black hover:bg-white hover:scale-105 shadow-sm" 
+                : "bg-[#27272a] text-neutral-500 cursor-not-allowed"
+            }`}
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="w-full text-center mt-2.5">
+           <span className="text-[10px] text-neutral-600 font-medium tracking-wide uppercase">End-to-End Encrypted</span>
+        </div>
+      </div>
+      
+      {/* Fullscreen Image Overlay */}
       {fullscreenImage && (
         <div 
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
           onClick={() => setFullscreenImage(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] flex items-center justify-center">
+          <div className="relative w-full h-full max-w-5xl flex items-center justify-center">
             <img 
               src={fullscreenImage} 
               alt="Fullscreen" 
-              className="max-w-full max-h-[90vh] rounded-lg object-contain"
+              className="max-w-full max-h-[90vh] rounded-md object-contain"
               onClick={(e) => e.stopPropagation()}
             />
             <button
               onClick={() => setFullscreenImage(null)}
-              className="absolute top-4 right-4 bg-[#e6e6e6]/20 hover:bg-[#e6e6e6]/40 text-[#e6e6e6] p-2 rounded-lg transition"
+              className="absolute top-6 right-6 bg-[#27272a]/60 hover:bg-[#27272a] text-white p-3 rounded-full transition backdrop-blur-sm"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
         </div>
@@ -1522,7 +1857,7 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
   if (showProfile) {
     return (
       <div
-        className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-[#18181b] shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+        className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-black/10 backdrop-blur-2xl shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
         style={{
           transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
@@ -1540,7 +1875,7 @@ function FloatingBox({ activeSection, sidebarCollapsed, selectedSettingsPage, se
   
   return (
     <div
-      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-[#18181b] shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
+      className={`fixed right-6 top-4 bottom-4 z-10 ${leftPosition} rounded-3xl border border-[#27272a] bg-black/10 backdrop-blur-2xl shadow-2xl shadow-black/50 px-16 py-6 transition-all duration-500 flex flex-col justify-start overflow-y-auto w-auto`}
       style={{
         transitionTimingFunction: softSpringEasing,
       }}
@@ -1583,13 +1918,48 @@ function TwoLevelSidebar() {
   const activeSection = location.pathname.split("/")[1] || "dashboard";
   const { isSidebarCollapsed, setIsSidebarCollapsed } = useSidebar();
   const [selectedSettingsPage, setSelectedSettingsPage] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(location.state?.selectedUser || null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [selectedDashboardView, setSelectedDashboardView] = useState('overview');
   const [groupRefreshKey, setGroupRefreshKey] = useState(0);
   const [contextMenu, setContextMenu] = useState(null); // { userId, x, y }
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const { socket, connected } = useSocket();
+  const { user } = useAuth();
   
+  React.useEffect(() => {
+    if (!socket || !connected) return;
+    
+    // Globally register and join all chats to get unread messages
+    const token = localStorage.getItem("chat_token");
+    if (token) {
+      fetch("http://localhost:5000/api/chats", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        const chats = data.data?.chats || [];
+        chats.forEach(c => socket.emit('join_room', c.chatId || c._id));
+      })
+      .catch(err => console.error("Error joining rooms globally:", err));
+    }
+
+    const onGlobalMsg = (msg) => {
+      const senderId = typeof msg.sender === 'object' ? msg.sender._id : msg.sender;
+      if (senderId === user?._id || senderId === user?.id) return;
+      
+      setUnreadCounts(prev => ({
+        ...prev,
+        [senderId]: (prev[senderId] || 0) + 1,
+        [msg.chatId]: (prev[msg.chatId] || 0) + 1
+      }));
+    };
+
+    socket.on('new_message', onGlobalMsg);
+    return () => socket.off('new_message', onGlobalMsg);
+  }, [socket, connected, user]);
+
   const handleUserContextMenu = (e, userId) => {
     e.preventDefault();
     setContextMenu({ userId, x: e.clientX, y: e.clientY });
@@ -1600,10 +1970,33 @@ function TwoLevelSidebar() {
     setSelectedSettingsPage(null);
     setShowProfile(false);
   };
+
+  const handleMessageClick = (targetUser) => {
+    setContextMenu(null);
+    setUnreadCounts(prev => { const n = {...prev}; delete n[targetUser._id || targetUser.id]; return n; });
+    if (activeSection !== 'chats') {
+      navigate('/chats', { state: { selectedUser: targetUser } });
+    } else {
+      setSelectedUser(targetUser);
+    }
+  };
+
+  const handleGroupSelectClick = (groupId) => {
+    setUnreadCounts(prev => { const n = {...prev}; delete n[groupId]; return n; });
+    setSelectedGroup(groupId);
+  };
+  
+  React.useEffect(() => {
+    const handleOpenDM = (e) => {
+      handleMessageClick(e.detail.user);
+    };
+    window.addEventListener('open-dm', handleOpenDM);
+    return () => window.removeEventListener('open-dm', handleOpenDM);
+  }, []);
   
   return (
-    <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-[#09090b]">
-      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-[#27272a] shadow-2xl shadow-black/50">
+    <div className="h-screen w-screen flex items-center justify-start pl-6 pt-4 pb-4 relative bg-transparent overflow-hidden">
+      <div className="relative z-20 flex flex-row h-full rounded-2xl overflow-hidden border border-[#27272a] shadow-2xl shadow-black/50 bg-black/5 backdrop-blur-3xl">
         <IconNavigation activeSection={activeSection} onSectionChange={handleSectionChange} />
         <DetailSidebar 
           activeSection={activeSection} 
@@ -1611,13 +2004,14 @@ function TwoLevelSidebar() {
           onCollapseChange={setIsSidebarCollapsed}
           onSettingsPageSelect={setSelectedSettingsPage}
           selectedUser={selectedUser}
-          onSelectUser={setSelectedUser}
+          onSelectUser={(u) => handleMessageClick(u)}
           selectedGroup={selectedGroup}
-          onSelectGroup={setSelectedGroup}
+          onSelectGroup={handleGroupSelectClick}
           selectedDashboardView={selectedDashboardView}
           onDashboardViewChange={setSelectedDashboardView}
           groupRefreshKey={groupRefreshKey}
           onUserContextMenu={handleUserContextMenu}
+          unreadCounts={unreadCounts}
         />
       </div>
       <FloatingBox activeSection={activeSection} sidebarCollapsed={isSidebarCollapsed} selectedSettingsPage={selectedSettingsPage} selectedUser={selectedUser} selectedGroup={selectedGroup} showProfile={showProfile} onProfileClose={() => setShowProfile(false)} onProfileOpen={() => setShowProfile(true)} selectedDashboardView={selectedDashboardView} onDashboardViewChange={setSelectedDashboardView} onGroupCreated={() => setGroupRefreshKey(k => k + 1)} onUserContextMenu={handleUserContextMenu} />
@@ -1626,6 +2020,7 @@ function TwoLevelSidebar() {
           userId={contextMenu.userId} 
           position={{ x: contextMenu.x, y: contextMenu.y }} 
           onClose={() => setContextMenu(null)}
+          onMessageClick={handleMessageClick}
         />
       )}
     </div>

@@ -26,7 +26,9 @@ function timeLabel(d) {
 
 function StatCard({ icon: Icon, label, value, colorClass }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-[#18181b] border border-[#27272a] p-5 flex flex-col gap-3 hover:border-neutral-700 transition-all duration-300 shadow-md">
+    <div className="relative flex flex-col gap-3 rounded-2xl bg-[#18181b] border border-[#27272a] p-5 hover:border-white/[0.15] hover:bg-white/[0.05] transition-all duration-300 group overflow-hidden shadow-md">
+      {/* Subtle glow */}
+      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/[0.04] to-transparent pointer-events-none" />
       <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${colorClass}`}>
         <Icon className="h-5 w-5" />
       </div>
@@ -83,6 +85,7 @@ export default function DashboardView({ onProfileOpen, selectedDashboardView, on
         .map(f => ({ _id: f._id || f.id, username: f.username, avatar: f.avatar }))
         
       setOnlineUsers(onlineFriends)
+      setStats(prev => prev ? { ...prev, onlineUsers: ids.length } : null)
     }
     
     // Listen for the initial load and any incremental changes from the backend
@@ -101,11 +104,50 @@ export default function DashboardView({ onProfileOpen, selectedDashboardView, on
           return prev.filter(p => p._id !== userId)
         }
       })
+      
+      setStats(prev => {
+        if (!prev) return prev
+        const count = prev.onlineUsers || 0
+        return { ...prev, onlineUsers: Math.max(0, status === 'online' ? count + 1 : count - 1) }
+      })
     })
+
+    // Listen to new messages to update the recent conversations list
+    const handleNewMessage = (msg) => {
+      setRecentChats(prev => {
+        const chats = [...prev];
+        const chatIdx = chats.findIndex(c => c.chatId === msg.chatId || c._id === msg.chatId);
+        
+        if (chatIdx !== -1) {
+          // Update existing chat
+          const updatedChat = { ...chats[chatIdx] };
+          updatedChat.lastMessage = msg;
+          updatedChat.lastMessageAt = msg.createdAt || new Date();
+          chats.splice(chatIdx, 1);
+          chats.unshift(updatedChat);
+        } else {
+          // New chat received, we might need to fetch the full chat object but for now, 
+          // to make it instantly responsive without full page reload, we'd trigger a reload of stats.
+          statsApi.getStats()
+            .then(sr => setStats(sr.data?.data))
+            .catch(() => {});
+          chatApi.getChats()
+             .then(cr => {
+               const sorted = [...(cr.data?.data?.chats || [])].sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+               setRecentChats(sorted.slice(0, 5));
+             })
+             .catch(() => {});
+        }
+        return chats.slice(0, 5); // Keep max 5 recent chats
+      });
+    };
+
+    socket.on('new_message', handleNewMessage);
 
     return () => {
       socket.off('online_users', handleOnlineUsers)
       socket.off('user_status_changed')
+      socket.off('new_message', handleNewMessage)
     }
   }, [socket, user?.friends])
 
@@ -173,7 +215,7 @@ export default function DashboardView({ onProfileOpen, selectedDashboardView, on
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{chatName(chat)}</p>
-                    <p className="text-xs text-neutral-500 truncate">{chat.lastMessage?.messageText || 'No messages'}</p>
+                    <p className="text-xs text-neutral-500 truncate">{chat.lastMessage?.messageText || chat.lastMessage?.content || 'No messages'}</p>
                   </div>
                   <span className="text-[11px] text-neutral-600 shrink-0 ml-4 pt-1 items-start self-start">{timeLabel(chat.lastMessageAt)}</span>
                 </div>

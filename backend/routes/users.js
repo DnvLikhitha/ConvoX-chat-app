@@ -17,6 +17,7 @@ router.post('/avatar', usersController.uploadAvatar);
 router.post('/banner', usersController.uploadBanner);
 
 // Friends
+router.get('/suggestions', usersController.getFriendSuggestions);
 router.get('/friends', usersController.getFriends);
 router.get('/friend-requests', usersController.getFriendRequests);
 router.post('/:id/friend-request', usersController.sendFriendRequest);

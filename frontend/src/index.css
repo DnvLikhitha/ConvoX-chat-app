@@ -60,7 +60,7 @@ html, body {
 }
 
 .dark {
-	--background: oklch(0.145 0 0);
+	--background: oklch(0 0 0);
 	--foreground: oklch(0.985 0 0);
 	--card: oklch(0.205 0 0);
 	--card-foreground: oklch(0.985 0 0);
@@ -131,12 +131,21 @@ html, body {
 	--radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@keyframes ambientGlow {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply text-foreground;
+		background: linear-gradient(45deg, #0e0e10, #161618, #0e0e10, #121214);
+		background-size: 400% 400%;
+		animation: ambientGlow 25s ease-in-out infinite;
 	}
 	html {
 		@apply font-sans;

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/useAuth'
-import { usersApi } from '../../services/api'
+import { usersApi, authApi } from '../../services/api'
 import { toast } from 'react-toastify'
-import { Search, UserPlus, Check, Clock, X } from 'lucide-react'
+import { Search, UserPlus, Check, Clock, X, Users, MessageSquare } from 'lucide-react'
 import ProfilePreviewModal from '../ui/ProfilePreviewModal'
 import { resolveUrl } from '../../utils/resolveUrl'
 
@@ -13,7 +13,7 @@ function initials(name) {
 
 export default function AddFriendsView() {
   const { user: currentUser } = useAuth()
-  const [activeTab, setActiveTab] = useState('search') // 'search' | 'pending'
+  const [activeTab, setActiveTab] = useState('friends') // 'friends' | 'search' | 'pending'
   
   const [contextMenu, setContextMenu] = useState(null) // { userId, x, y }
   const handleContextMenu = (e, userId) => {
@@ -21,6 +21,10 @@ export default function AddFriendsView() {
     setContextMenu({ userId, x: e.clientX, y: e.clientY })
   }
   
+  // Friends list state
+  const [friendsList, setFriendsList] = useState([])
+  const [loadingFriends, setLoadingFriends] = useState(false)
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -31,6 +35,30 @@ export default function AddFriendsView() {
   // Pending requests state
   const [pendingRequestsList, setPendingRequestsList] = useState([])
   const [loadingPending, setLoadingPending] = useState(false)
+
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+
+  // Load friends list
+  useEffect(() => {
+    loadFriends()
+  }, [])
+
+  const loadFriends = async () => {
+    setLoadingFriends(true)
+    try {
+      const res = await usersApi.getFriendsList()
+      setFriendsList(res.data?.data?.friends || [])
+    } catch (err) {
+      console.error('Failed to load friends:', err)
+    } finally {
+      setLoadingFriends(false)
+    }
+  }
+
+  // Get set of friend IDs for quick lookup
+  const friendIds = new Set(friendsList.map(f => f._id || f.id))
 
   // Debounced search
   useEffect(() => {
@@ -48,8 +76,11 @@ export default function AddFriendsView() {
       try {
         const response = await usersApi.searchUsers(searchQuery)
         const results = response.data?.data?.users || []
-        // Filter out current user
-        setSearchResults(results.filter(u => u._id !== currentUser?._id && u._id !== currentUser?.id))
+        // Filter out current user AND existing friends
+        setSearchResults(results.filter(u => {
+          const uid = u._id || u.id
+          return uid !== currentUser?._id && uid !== currentUser?.id && !friendIds.has(uid)
+        }))
       } catch (err) {
         console.error('Search failed:', err)
         toast.error('Failed to search users')
@@ -62,7 +93,7 @@ export default function AddFriendsView() {
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current)
     }
-  }, [searchQuery, currentUser?._id, activeTab])
+  }, [searchQuery, currentUser?._id, activeTab, friendIds.size])
 
   // Load pending requests
   useEffect(() => {
@@ -83,6 +114,25 @@ export default function AddFriendsView() {
     }
   }
 
+  // Load suggestions
+  useEffect(() => {
+    if (activeTab === 'search' && !searchQuery.trim()) {
+      loadSuggestions()
+    }
+  }, [activeTab, searchQuery])
+
+  const loadSuggestions = async () => {
+    setLoadingSuggestions(true)
+    try {
+      const res = await usersApi.getFriendSuggestions()
+      setSuggestions(res.data?.data?.suggestions || [])
+    } catch (err) {
+      console.error('Failed to load suggestions:', err)
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }
+
   const handleAddFriend = async (userId) => {
     if (friendRequests[userId]) return
 
@@ -92,8 +142,8 @@ export default function AddFriendsView() {
       toast.success('Friend request sent!')
       setFriendRequests(prev => ({ ...prev, [userId]: 'sent' }))
     } catch (err) {
-      console.error('Failed to send request:', err)
-      toast.error('Failed to send friend request')
+      const msg = err.response?.data?.message || 'Failed to send friend request'
+      toast.error(msg)
       setFriendRequests(prev => {
         const updated = { ...prev }
         delete updated[userId]
@@ -107,6 +157,8 @@ export default function AddFriendsView() {
       await usersApi.acceptFriendRequest(userId)
       toast.success('Request accepted!')
       setPendingRequestsList(prev => prev.filter(req => (req.from && req.from._id !== userId)))
+      // Refresh the friends list so they show up immediately
+      loadFriends()
     } catch {
       toast.error('Failed to accept request')
     }
@@ -122,13 +174,35 @@ export default function AddFriendsView() {
     }
   }
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'online': return 'bg-emerald-500'
+      case 'away': return 'bg-amber-500'
+      default: return 'bg-neutral-600'
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header & Tabs */}
-      <div className="sticky top-0 bg-[#18181b] z-10 px-0 py-4 border-b border-[#27272a] mb-6">
+      <div className="sticky top-0 bg-[#09090b] z-10 px-0 py-4 border-b border-[#27272a] mb-6">
         <h1 className="text-2xl font-bold text-white mb-6">Friends</h1>
         
         <div className="flex gap-4">
+          <button 
+            onClick={() => setActiveTab('friends')}
+            className={`pb-3 text-sm font-semibold transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === 'friends' ? 'border-white text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Your Friends
+            {friendsList.length > 0 && (
+              <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-neutral-800 text-[10px] text-neutral-400 px-1">
+                {friendsList.length}
+              </span>
+            )}
+          </button>
           <button 
             onClick={() => setActiveTab('search')}
             className={`pb-3 text-sm font-semibold transition-colors border-b-2 ${
@@ -154,6 +228,72 @@ export default function AddFriendsView() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-0">
+
+        {/* --- YOUR FRIENDS TAB --- */}
+        {activeTab === 'friends' && (
+          <>
+            {loadingFriends ? (
+              <div className="flex h-40 items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-700 border-t-[#e6e6e6]" />
+              </div>
+            ) : friendsList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#18181b] border border-[#27272a]">
+                  <Users className="h-6 w-6 text-neutral-600" />
+                </div>
+                <p className="text-neutral-500 font-medium">No friends yet</p>
+                <button onClick={() => setActiveTab('search')} className="text-sm text-[#e6e6e6] hover:text-white transition-colors">
+                  Search for people to add
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-4">
+                  Your Friends — {friendsList.length}
+                </h2>
+                {friendsList.map(friend => {
+                  const fid = friend._id || friend.id
+                  return (
+                    <div
+                      key={fid}
+                      className="flex items-center justify-between p-4 bg-[#18181b] border border-[#27272a] rounded-xl hover:border-neutral-700 transition-colors shadow-sm"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="relative">
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-[#e6e6e6] font-bold overflow-hidden cursor-context-menu"
+                            onContextMenu={(e) => handleContextMenu(e, fid)}
+                          >
+                            {friend.avatar ? <img src={resolveUrl(friend.avatar)} className="object-cover w-full h-full" alt="" /> : initials(friend.username)}
+                          </div>
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#18181b] ${getStatusColor(friend.status)}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-neutral-200 truncate">{friend.username}</p>
+                          <p className="text-xs text-neutral-500 truncate capitalize">{friend.status || 'offline'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent('open-dm', { detail: { user: friend } }))}
+                          className="flex items-center justify-center p-1.5 rounded-lg bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white transition-colors"
+                          title="Message"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </button>
+                        <span className="text-xs text-emerald-500/80 bg-emerald-500/10 px-2 py-1 rounded-md font-medium">
+                          <Check className="h-3 w-3 inline mr-1" />
+                          Friends
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )}
         
         {/* --- SEARCH TAB --- */}
         {activeTab === 'search' && (
@@ -176,16 +316,80 @@ export default function AddFriendsView() {
             )}
 
             {!loading && !searchQuery && (
-              <div className="flex flex-col items-center justify-center h-40 gap-3">
-                <Search className="h-12 w-12 text-neutral-800" />
-                <p className="text-neutral-500 font-medium">Search users to add as friends</p>
-              </div>
+              <>
+                {loadingSuggestions ? (
+                  <div className="flex h-40 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-neutral-700 border-t-[#e6e6e6]" />
+                  </div>
+                ) : suggestions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 gap-3">
+                    <Search className="h-12 w-12 text-neutral-800" />
+                    <p className="text-neutral-500 font-medium">Search users to add as friends</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <h2 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-4">Suggested Friends</h2>
+                    {suggestions.map(user => (
+                      <div
+                        key={user._id}
+                        className="flex items-center justify-between p-4 bg-[#18181b] border border-[#27272a] rounded-xl hover:border-neutral-700 transition-colors shadow-sm"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div 
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-[#e6e6e6] font-bold overflow-hidden cursor-context-menu"
+                            onContextMenu={(e) => handleContextMenu(e, user._id)}
+                          >
+                             {user.avatar ? <img src={resolveUrl(user.avatar)} className="object-cover w-full h-full" alt="" /> : initials(user.username)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-neutral-200 truncate">{user.username}</p>
+                            <p className="text-xs text-neutral-500 flex items-center gap-1.5 mt-0.5">
+                              <Users className="h-3 w-3" />
+                              {user.mutualCount} mutual {user.mutualCount === 1 ? 'friend' : 'friends'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleAddFriend(user._id)}
+                          disabled={!!friendRequests[user._id]}
+                          className={`ml-3 flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-sm shrink-0 shadow-sm ${
+                            friendRequests[user._id] === 'sent'
+                              ? 'bg-neutral-800/50 text-neutral-500 cursor-default border border-transparent'
+                              : friendRequests[user._id] === 'pending'
+                              ? 'bg-neutral-800 text-neutral-400 cursor-wait border border-neutral-700'
+                              : 'bg-white text-black hover:bg-neutral-200 border border-transparent'
+                          }`}
+                        >
+                          {friendRequests[user._id] === 'sent' ? (
+                            <>
+                              <Check className="h-4 w-4" />
+                              <span>Sent</span>
+                            </>
+                          ) : friendRequests[user._id] === 'pending' ? (
+                            <>
+                              <Clock className="h-4 w-4" />
+                              <span>Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4" />
+                              <span>Add Friend</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {!loading && searchQuery && searchResults.length === 0 && (
               <div className="flex flex-col items-center justify-center h-40 gap-3">
                 <UserPlus className="h-12 w-12 text-neutral-800" />
                 <p className="text-neutral-500 font-medium">No users found</p>
+                <p className="text-xs text-neutral-600">Existing friends are hidden from results</p>
               </div>
             )}
 

@@ -189,8 +189,13 @@ const logout = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     // Always re-fetch from DB so we get latest bannerUrl, bio, friends etc.
-    const { User } = require('../models');
+    const { User, Message, Chat } = require('../models');
     const freshUser = await User.findById(req.user._id).select('-password').populate('friends', 'username avatar status');
+
+    const [totalMessages, totalChats] = await Promise.all([
+      Message.countDocuments({ sender: freshUser._id }),
+      Chat.countDocuments({ 'participants.user': freshUser._id })
+    ]);
 
     const userData = {
       id: freshUser._id,
@@ -207,6 +212,8 @@ const getProfile = async (req, res) => {
       friends: freshUser.friends || [],
       friendCount: freshUser.friends?.length || 0,
       isAdmin: freshUser.role === 'admin',
+      totalMessages,
+      totalChats,
     };
 
     res.json({
