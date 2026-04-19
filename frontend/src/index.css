@@ -238,3 +238,8 @@ html, body {
 	color: var(--primary-foreground);
 	font-weight: 700;
 }
+
+/* Remove Spline Watermark */
+a[href*="spline.design"] {
+	display: none !important;
+}

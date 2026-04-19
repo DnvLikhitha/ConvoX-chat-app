@@ -83,7 +83,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <main className="pt-32 pb-20 px-6 relative z-10 mt-10">
+      <main className="pt-24 pb-20 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-12">
           
           {/* Main Text Container */}
@@ -131,12 +131,12 @@ export default function LandingPage() {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1, delay: 0.4 }}
-            className="w-full lg:w-1/2 h-[500px] md:h-[600px] relative mt-12 lg:mt-0"
+            className="w-full lg:w-1/2 h-[500px] md:h-[600px] relative mt-12 lg:mt-0 overflow-hidden rounded-[40px]"
             title="Interact with Whobee!"
           >
             <InteractiveRobotSpline 
               scene="https://prod.spline.design/PyzDhpQ9E5f1E3MT/scene.splinecode"
-              className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform duration-500"
+              className="absolute inset-x-0 top-0 w-full h-[calc(100%+80px)] cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform duration-500"
             />
           </motion.div>
 
