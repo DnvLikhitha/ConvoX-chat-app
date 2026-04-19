@@ -3,8 +3,12 @@ import { useAuth } from '../../contexts/useAuth'
 import { useSocket } from '../../contexts/SocketContext'
 import { chatApi, authApi } from '../../services/api'
 import { toast } from 'react-toastify'
-import { Plus, Search, X, Send, Users, Hash, Check, CheckCheck, MoreVertical, Paperclip, Flag as FlagIcon, AlertTriangle, ShieldOff } from 'lucide-react'
+import { Plus, Search, X, Send, Users, Hash, Check, CheckCheck, MoreVertical, Paperclip, Flag as FlagIcon, AlertTriangle, ShieldOff, Smile } from 'lucide-react'
 import { resolveUrl } from '../../utils/resolveUrl'
+import graphThemeBg from '../../assets/graph theme.jpg'
+import halloweenThemeBg from '../../assets/halloween theme.jpg'
+import loveThemeBg from '../../assets/love theme.jpg'
+import rainThemeBg from '../../assets/rain theme.jpg'
 
 function initials(name) {
   if (!name) return '?'
@@ -155,16 +159,41 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
     if (!socket || !connected || !chatId) return
     socket.emit('join_room', chatId)
     function onMsg(msg) { setMessages(p => p.some(m => m._id === msg._id) ? p : [...p, msg]) }
+    function onThemeUpdate({ chatId: updatedChatId, theme }) {
+      if (updatedChatId === chatId) setChatBackground(theme || null);
+    }
     function onTyping({ user: who, room }) {
       if (room !== chatId) return
       setTypingUsers(p => p.includes(who) ? p : [...p, who])
       clearTimeout(typingTimeouts.current[who])
       typingTimeouts.current[who] = setTimeout(() => setTypingUsers(p => p.filter(u => u !== who)), 3000)
     }
+    function onReaction({ messageId, chatId: updatedChatId, reactions }) {
+      if (updatedChatId !== chatId) return;
+      setMessages(p => p.map(m => (m._id === messageId || m.id === messageId) ? { ...m, reactions } : m));
+    }
     socket.on('new_message', onMsg)
+    socket.on('theme_update', onThemeUpdate)
     socket.on('user_typing', onTyping)
-    return () => { socket.off('new_message', onMsg); socket.off('user_typing', onTyping) }
+    socket.on('message_reaction', onReaction)
+    return () => { socket.off('new_message', onMsg); socket.off('theme_update', onThemeUpdate); socket.off('user_typing', onTyping); socket.off('message_reaction', onReaction) }
   }, [socket, connected, chatId])
+
+  const handleReact = useCallback(async (messageId, emoji) => {
+    if (!messageId || messageId.toString().startsWith('optimistic')) return;
+    try {
+      const token = localStorage.getItem("chat_token");
+      const res = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/react`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Backend reaction error:", errorData);
+      }
+    } catch (err) { console.error("Error reacting:", err); }
+  }, []);
 
   const handleSend = useCallback(async () => {
     const text = draft.trim()
@@ -182,7 +211,16 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
   const memberCount = chat?.participants?.length || 0
   let lastDate = null
 
-  const [chatBackground, setChatBackground] = useState(() => localStorage.getItem('custom_chat_bg'));
+  const [chatBackground, setChatBackground] = useState(null);
+
+  useEffect(() => {
+    if (chat && chat.theme !== undefined) {
+      setChatBackground(chat.theme || null);
+    } else if (chat) {
+       // fallback if no theme provided
+       setChatBackground(null);
+    }
+  }, [chat]);
   const [showMenu, setShowMenu] = useState(false);
   const themeInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -252,19 +290,18 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
     }
   };
 
-  const handleBackgroundUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      try {
-        localStorage.setItem('custom_chat_bg', reader.result);
-        setChatBackground(reader.result);
-      } catch (err) {
-        toast.error('Image too large for local storage.');
-      }
-    };
-    reader.readAsDataURL(file);
+  const handleThemeChange = async (theme) => {
+    try {
+      const token = localStorage.getItem("chat_token");
+      await fetch(`http://localhost:5000/api/chats/${chatId}/theme`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ theme })
+      });
+      setChatBackground(theme);
+    } catch (err) {
+      toast.error('Failed to update theme');
+    }
     setShowMenu(false);
   };
 
@@ -275,7 +312,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
   )
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#09090b]">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a] bg-transparent shrink-0">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 relative flex-shrink-0 cursor-context-menu outline-none">
@@ -302,53 +339,61 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                 <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Chat Theme</span>
               </div>
               <button 
-                onClick={() => {
-                  localStorage.removeItem('custom_chat_bg');
-                  setChatBackground(null);
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange(null)} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-white hover:bg-neutral-800 transition flex items-center justify-between"
               >
                 Default Theme
                 {!chatBackground && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
               <button 
-                onClick={() => {
-                  const theme = "theme-rain";
-                  setChatBackground(theme);
-                  localStorage.setItem('custom_chat_bg', theme);
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange("theme-rain")} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-white hover:bg-neutral-800 transition flex items-center justify-between"
               >
                 Rain Theme
                 {chatBackground === "theme-rain" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
               <button 
-                onClick={() => {
-                  const theme = "theme-love";
-                  setChatBackground(theme);
-                  localStorage.setItem('custom_chat_bg', theme);
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange("theme-love")} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-white hover:bg-neutral-800 transition flex items-center justify-between"
               >
                 Love Theme
                 {chatBackground === "theme-love" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => handleThemeChange("theme-halloween")} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-white hover:bg-neutral-800 transition flex items-center justify-between"
+              >
+                Halloween Theme
+                {chatBackground === "theme-halloween" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => handleThemeChange("theme-graph")} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-white hover:bg-neutral-800 transition flex items-center justify-between"
+              >
+                Graph Theme
+                {chatBackground === "theme-graph" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 border-transparent relative group chat-scroll-area">
+      <div className="flex-1 relative overflow-hidden bg-transparent">
         {chatBackground === 'theme-rain' && (
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(180deg, #182230 0%, #0d1117 100%)' }} />
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-30" style={{ backgroundImage: `url("${rainThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         )}
         {chatBackground === 'theme-love' && (
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(135deg, #3d0d24 0%, #09090b 100%)' }} />
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-30" style={{ backgroundImage: `url("${loveThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         )}
-        <div className="relative z-10 w-full h-full space-y-6 flex flex-col">
+        {chatBackground === 'theme-halloween' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-40" style={{ backgroundImage: `url("${halloweenThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        )}
+        {chatBackground === 'theme-graph' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-40" style={{ backgroundImage: `url("${graphThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        )}
+
+        <div className="absolute inset-0 overflow-y-auto px-6 py-6 z-10 group chat-scroll-area">
+          <div className="relative z-10 w-full space-y-6 flex flex-col min-h-full">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center h-full justify-center gap-3 py-12">
             <Hash className="h-9 w-9 text-neutral-700" />
@@ -382,6 +427,16 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                  showDateBadge = true;
                }
              }
+          }
+
+          if (msg.messageType === 'system') {
+            return (
+              <div key={msg._id || idx} className="w-full flex justify-center my-4 group">
+                <span className="px-4 py-2 bg-neutral-800/80 border border-neutral-700/50 text-neutral-400 text-xs rounded-full shadow-sm backdrop-blur-md">
+                  <span className="font-semibold text-neutral-300">{msg.sender?.username}</span> {msg.messageText}
+                </span>
+              </div>
+            );
           }
 
           return (
@@ -420,7 +475,9 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                       isOwn 
                         ? `rounded-l-2xl rounded-tr-2xl ${isLast ? 'rounded-br-sm' : 'rounded-br-xl'}` 
                         : `rounded-r-2xl rounded-tl-2xl ${isLast ? 'rounded-bl-sm' : 'rounded-bl-xl'}`
-                    }`}>
+                    }`}
+                      onDoubleClick={() => handleReact(msg._id || msg.id, '❤️')}
+                    >
                       {msg.messageType === 'file' ? (
                         <a 
                           href={`http://localhost:5000${msg.fileUrl}`} 
@@ -449,15 +506,39 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                     </div>
                   )}
                   
-                  {/* Report hover button – only on others' messages */}
-                  {!isOwn && (
-                    <button
-                      onClick={() => setFlagDialog({ open: true, messageId: msg._id })}
-                      className="absolute -left-8 top-2 p-1.5 text-neutral-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Report message"
-                    >
-                      <FlagIcon className="w-3.5 h-3.5" />
-                    </button>
+                  {/* Action buttons */}
+                  <div className={`absolute top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isOwn ? '-left-16' : '-right-16'}`}>
+                     {!isOwn && (
+                       <button onClick={() => setFlagDialog({ open: true, messageId: msg._id || msg.id })} className="p-1 text-neutral-600 hover:text-red-500 transition-colors" title="Report message">
+                         <FlagIcon className="w-4 h-4" />
+                       </button>
+                     )}
+                     <div className="relative group/react flex items-center">
+                        <button className="p-1 text-neutral-600 hover:text-yellow-500 transition-colors cursor-pointer" title="React"><Smile className="w-4 h-4" /></button>
+                        <div className={`absolute top-1/2 -translate-y-1/2 ${isOwn ? 'right-6' : 'left-6'} hidden group-hover/react:flex bg-[#18181b] border border-[#27272a] rounded-full px-2 py-1 items-center gap-1 z-20 shadow-xl`}>
+                          {['❤️', '😂', '😮', '😢', '🔥', '👍'].map(emoji => (
+                             <button 
+                               key={emoji} 
+                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(msg._id || msg.id, emoji); }} 
+                               className="hover:scale-125 transition-transform px-1 text-lg z-30 cursor-pointer"
+                             >
+                               {emoji}
+                             </button>
+                          ))}
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Reactions display */}
+                  {msg.reactions && msg.reactions.length > 0 && (
+                    <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      {Object.entries(msg.reactions.reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {})).map(([emoji, count]) => (
+                         <div key={emoji} onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(msg._id || msg.id, emoji); }} className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] bg-[#18181b]/90 border border-[#27272a] text-neutral-300 cursor-pointer hover:bg-[#27272a] transition relative z-20`}>
+                           <span>{emoji}</span>
+                           {count > 1 && <span className="font-semibold text-[10px]">{count}</span>}
+                         </div>
+                      ))}
+                    </div>
                   )}
 
                 </div>
@@ -467,6 +548,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
         })}
         {typingNames.length > 0 && <p className="text-xs text-neutral-500 animate-pulse">{typingNames.join(', ')} typing...</p>}
         <div ref={bottomRef} />
+          </div>
         </div>
       </div>
 
@@ -520,7 +602,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
         </div>
       )}
 
-      <div className="p-4 bg-transparent z-10 w-full shrink-0 border-t border-[#27272a]">
+      <div className="p-4 bg-transparent shrink-0 border-t border-[#27272a]">
         <form onSubmit={e => { e.preventDefault(); handleSend() }} className="flex items-end gap-2 bg-[#18181b] border border-[#27272a] rounded-2xl p-2 focus-within:border-neutral-500 focus-within:shadow-sm focus-within:shadow-black transition-all">
           <input
             type="file"

@@ -127,7 +127,7 @@ router.get('/user/:userId/messages', authenticateToken, async (req, res) => {
       timestamp: msg.createdAt
     }));
 
-    res.json({ success: true, data: messagesWithFlag });
+    res.json({ success: true, data: { messages: messagesWithFlag, chat } });
   } catch (error) {
     console.error('Error fetching direct messages:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch messages', errors: [error.message] });
@@ -344,6 +344,44 @@ router.post('/:chatId/messages', authenticateToken, async (req, res) => {
   }
 });
 
+// ── PUT update chat theme ──────────────────────────────────────────────────
+router.put('/:chatId/theme', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { theme } = req.body;
+
+    const chat = await Chat.findOne({ chatId, 'participants.user': req.user._id });
+    if (!chat) {
+      return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
+    }
+
+    chat.theme = theme;
+    await chat.save();
+
+    const themeName = theme ? theme.replace('theme-', '').replace(/^\w/, c => c.toUpperCase()) : 'Default';
+    const messageText = `changed the chat theme to ${themeName}`;
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const message = await Message.create({ messageId, chatId, sender: req.user._id, messageText, messageType: 'system', status: 'sent' });
+
+    chat.lastMessage = message._id;
+    chat.lastMessageAt = message.createdAt;
+    await chat.save();
+
+    const populatedMessage = await Message.findById(message._id).populate('sender', 'username email');
+
+    const io = req.app.get('socketio');
+    if (io) {
+      io.to(chatId).emit('theme_update', { chatId, theme });
+      io.to(chatId).emit('new_message', { ...populatedMessage.toObject(), chatId });
+    }
+
+    res.json({ success: true, message: 'Theme updated successfully', data: { theme } });
+  } catch (error) {
+    console.error('Error updating theme:', error);
+    res.status(500).json({ success: false, message: 'Failed to update theme', errors: [error.message] });
+  }
+});
+
 // ── POST flag a message (with chatId) ────────────────────────────────────
 router.post('/:chatId/messages/:messageId/flag', authenticateToken, async (req, res) => {
   try {
@@ -404,6 +442,55 @@ router.post('/messages/:messageId/flag', authenticateToken, async (req, res) => 
   }
 });
 
+// ── POST react to a message ────────────────────────────────────────────────
+router.post('/messages/:messageId/react', authenticateToken, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    const chat = await Chat.findOne({ chatId: message.chatId, 'participants.user': req.user._id });
+    if (!chat) {
+      return res.status(403).json({ success: false, message: 'Not a participant of this chat' });
+    }
+
+    if (!message.reactions) message.reactions = [];
+
+    const existingReactionIndex = message.reactions.findIndex(r => r.user.toString() === req.user._id.toString());
+    
+    if (existingReactionIndex >= 0) {
+      if (message.reactions[existingReactionIndex].emoji === emoji) {
+        message.reactions.splice(existingReactionIndex, 1); // toggle off
+      } else {
+        message.reactions[existingReactionIndex].emoji = emoji; // change
+      }
+    } else {
+      message.reactions.push({ user: req.user._id, emoji }); // add new
+    }
+
+    await message.save();
+    await message.populate('sender', 'username email avatar status');
+
+    const io = req.app.get('socketio');
+    if (io) {
+      io.to(message.chatId).emit('message_reaction', {
+        messageId: message._id,
+        chatId: message.chatId,
+        reactions: message.reactions
+      });
+    }
+
+    res.json({ success: true, message: 'Reaction updated', data: { reactions: message.reactions } });
+  } catch (error) {
+    console.error('Error reacting to message:', error);
+    res.status(500).json({ success: false, message: 'Failed to react to message', errors: [error.message] });
+  }
+});
+
 // ── GET search messages ───────────────────────────────────────────────────
 router.get('/search', authenticateToken, async (req, res) => {
   try {
@@ -435,3 +522,4 @@ router.get('/search', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+

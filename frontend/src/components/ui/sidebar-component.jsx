@@ -13,6 +13,10 @@ import UserProfileView from "../views/UserProfileView";
 import ProfilePreviewModal from "./ProfilePreviewModal";
 import { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount } from "./avatar";
 import { Button } from "./button";
+import graphThemeBg from '../../assets/graph theme.jpg';
+import halloweenThemeBg from '../../assets/halloween theme.jpg';
+import loveThemeBg from '../../assets/love theme.jpg';
+import rainThemeBg from '../../assets/rain theme.jpg';
 import { Field } from "./field";
 import { Input } from "./input";
 import {
@@ -1267,7 +1271,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
 
-  const [chatBackground, setChatBackground] = useState(() => localStorage.getItem('custom_chat_bg'));
+  const [chatBackground, setChatBackground] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const themeInputRef = React.useRef(null);
   const [flagDialog, setFlagDialog] = useState({ open: false, messageId: null });
@@ -1310,19 +1314,19 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     }
   };
 
-  const handleBackgroundUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      try {
-        localStorage.setItem('custom_chat_bg', reader.result);
-        setChatBackground(reader.result);
-      } catch (err) {
-        alert('Image too large for local storage. Please try a smaller image.');
-      }
-    };
-    reader.readAsDataURL(file);
+  const handleThemeChange = async (theme) => {
+    try {
+      if (!activeChatId) return;
+      const token = localStorage.getItem("chat_token");
+      await fetch(`http://localhost:5000/api/chats/${activeChatId}/theme`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ theme })
+      });
+      setChatBackground(theme);
+    } catch (err) {
+      alert('Failed to update theme');
+    }
     setShowMenu(false);
   };
 
@@ -1344,10 +1348,19 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
         });
         if (response.ok) {
           const data = await response.json();
-          const msgs = data.data || [];
+          const msgs = data.data?.messages || data.data || [];
           setMessages(msgs);
           // Capture the chatId for socket room joining
-          if (msgs.length > 0) setActiveChatId(msgs[0].chatId);
+          if (data.data?.chat) {
+            setActiveChatId(data.data.chat.chatId);
+            setChatBackground(data.data.chat.theme || null);
+          } else if (msgs.length > 0) {
+            setActiveChatId(msgs[0].chatId);
+            setChatBackground(null);
+          } else {
+            setActiveChatId(null);
+            setChatBackground(null);
+          }
         }
       } catch (err) {
         console.error("Error loading messages:", err);
@@ -1369,6 +1382,9 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
       if (msg.chatId !== activeChatId) return;
       setMessages(prev => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
     };
+    const onThemeUpdate = ({ chatId, theme }) => {
+      if (chatId === activeChatId) setChatBackground(theme || null);
+    };
     const onStatusUpdate = ({ chatId, status }) => {
       if (chatId !== activeChatId) return;
       setMessages(prev => prev.map(m => {
@@ -1379,9 +1395,15 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
         return m;
       }));
     };
+    const onReaction = ({ messageId, chatId, reactions }) => {
+      if (chatId !== activeChatId) return;
+      setMessages(prev => prev.map(m => (m._id === messageId || m.id === messageId) ? { ...m, reactions } : m));
+    };
     socket.on('new_message', onMsg);
+    socket.on('theme_update', onThemeUpdate);
     socket.on('messages_status_update', onStatusUpdate);
-    return () => { socket.off('new_message', onMsg); socket.off('messages_status_update', onStatusUpdate); };
+    socket.on('message_reaction', onReaction);
+    return () => { socket.off('new_message', onMsg); socket.off('theme_update', onThemeUpdate); socket.off('messages_status_update', onStatusUpdate); socket.off('message_reaction', onReaction); };
   }, [socket, connected, activeChatId]);
 
   // Auto-scroll
@@ -1431,6 +1453,22 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
       console.error("Error sending message:", err);
     }
   };
+  const handleReact = async (messageId, emoji) => {
+    if (!messageId || messageId.toString().startsWith('optimistic')) return;
+    try {
+      const token = localStorage.getItem("chat_token");
+      const res = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/react`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Backend reaction error:", errorData);
+      }
+    } catch (err) { console.error("Error reacting:", err); }
+  };
+
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file || !selectedUser) return;
@@ -1476,7 +1514,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
   const getInitials = (name) => name?.charAt(0).toUpperCase() || "U";
   
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#09090b]">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a] bg-transparent shrink-0">
         <div className="flex items-center gap-4">
@@ -1508,55 +1546,63 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                 <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Chat Theme</span>
               </div>
               <button 
-                onClick={() => {
-                  setChatBackground(null);
-                  localStorage.removeItem('custom_chat_bg');
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange(null)} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
               >
                 Default Theme
                 {!chatBackground && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
               <button 
-                onClick={() => {
-                  const theme = "theme-rain";
-                  setChatBackground(theme);
-                  localStorage.setItem('custom_chat_bg', theme);
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange("theme-rain")} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
               >
                 Rain Theme
                 {chatBackground === "theme-rain" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
               <button 
-                onClick={() => {
-                  const theme = "theme-love";
-                  setChatBackground(theme);
-                  localStorage.setItem('custom_chat_bg', theme);
-                  setShowMenu(false);
-                }} 
+                onClick={() => handleThemeChange("theme-love")} 
                 className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
               >
                 Love Theme
                 {chatBackground === "theme-love" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => handleThemeChange("theme-halloween")} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
+              >
+                Halloween Theme
+                {chatBackground === "theme-halloween" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button 
+                onClick={() => handleThemeChange("theme-graph")} 
+                className="w-full text-left px-4 py-2.5 text-[13px] text-[#e6e6e6] hover:bg-[#27272a] transition flex items-center justify-between"
+              >
+                Graph Theme
+                {chatBackground === "theme-graph" && <Check className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
             </div>
           )}
         </div>
       </div>
       
-      {/* Messages View */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 border-transparent relative group chat-scroll-area">
+      {/* Messages Wrapper */}
+      <div className="flex-1 relative overflow-hidden bg-transparent">
         {chatBackground === 'theme-rain' && (
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(180deg, #182230 0%, #0d1117 100%)' }} />
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-30" style={{ backgroundImage: `url("${rainThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         )}
         {chatBackground === 'theme-love' && (
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(135deg, #3d0d24 0%, #09090b 100%)' }} />
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-30" style={{ backgroundImage: `url("${loveThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        )}
+        {chatBackground === 'theme-halloween' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-40" style={{ backgroundImage: `url("${halloweenThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        )}
+        {chatBackground === 'theme-graph' && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-40" style={{ backgroundImage: `url("${graphThemeBg}")`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         )}
         
-        <div className="relative z-10 w-full h-full min-h-full space-y-6 flex flex-col">
+        {/* Messages View */}
+        <div className="absolute inset-0 overflow-y-auto px-6 py-6 z-10 group chat-scroll-area">
+          <div className="relative z-10 w-full space-y-6 flex flex-col min-h-full">
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
              <div className="w-8 h-8 rounded-full border-4 border-neutral-800 border-t-neutral-400 animate-spin" />
@@ -1616,6 +1662,16 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                }
             }
 
+            if (msg.messageType === 'system') {
+              return (
+                <div key={msg._id || idx} className="w-full flex justify-center my-4 group">
+                  <span className="px-4 py-2 bg-neutral-800/80 border border-neutral-700/50 text-neutral-400 text-xs rounded-full shadow-sm backdrop-blur-md">
+                    <span className="font-semibold text-neutral-300">{msg.sender?.username || "Someone"}</span> {msg.messageText || msg.content}
+                  </span>
+                </div>
+              );
+            }
+
             return (
               <div key={msg._id || msg.id} className="w-full group">
                 {showDateBadge && (
@@ -1638,7 +1694,9 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                         <img src={`http://localhost:5000${msg.fileUrl}`} alt={msg.fileName} className="max-w-xs object-cover" />
                       </div>
                     ) : (
-                      <div className={`px-4 py-2.5 shadow-sm leading-relaxed text-[15px] ${
+                      <div 
+                        onDoubleClick={() => handleReact(msg._id || msg.id, '❤️')}
+                        className={`px-4 py-2.5 shadow-sm leading-relaxed text-[15px] select-none ${
                         isMe 
                           ? "bg-[#e6e6e6] text-black" 
                           : "bg-[#27272a] text-[#e6e6e6]"
@@ -1664,14 +1722,39 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                       </div>
                     )}
                     
-                    {/* Flag Button */}
-                    {!isMe && (
-                      <button 
-                        onClick={() => setFlagDialog({ open: true, messageId: msg._id || msg.id })}
-                        className="absolute -left-8 top-2 p-1.5 text-neutral-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Flag className="w-4 h-4" />
-                      </button>
+                    {/* Action buttons */}
+                    <div className={`absolute top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? '-left-16' : '-right-16'}`}>
+                       {!isMe && (
+                         <button onClick={() => setFlagDialog({ open: true, messageId: msg._id || msg.id })} className="p-1 text-neutral-600 hover:text-red-500 transition-colors" title="Report message">
+                           <Flag className="w-4 h-4" />
+                         </button>
+                       )}
+                       <div className="relative group/react flex items-center">
+                          <button className="p-1 text-neutral-600 hover:text-yellow-500 transition-colors cursor-pointer" title="React"><Smile className="w-4 h-4" /></button>
+                          <div className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-6' : 'left-6'} hidden group-hover/react:flex bg-[#18181b] border border-[#27272a] rounded-full px-2 py-1 items-center gap-1 z-20 shadow-xl`}>
+                            {['❤️', '😂', '😮', '😢', '🔥', '👍'].map(emoji => (
+                               <button 
+                                 key={emoji} 
+                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(msg._id || msg.id, emoji); }} 
+                                 className="hover:scale-125 transition-transform px-1 text-lg z-30 cursor-pointer"
+                               >
+                                 {emoji}
+                               </button>
+                            ))}
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Reactions display */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        {Object.entries(msg.reactions.reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {})).map(([emoji, count]) => (
+                           <div key={emoji} onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(msg._id || msg.id, emoji); }} className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] bg-[#18181b]/90 border border-[#27272a] text-neutral-300 cursor-pointer hover:bg-[#27272a] transition relative z-20`}>
+                             <span>{emoji}</span>
+                             {count > 1 && <span className="font-semibold text-[10px]">{count}</span>}
+                           </div>
+                        ))}
+                      </div>
                     )}
                     
                     {/* Meta */}
@@ -1692,6 +1775,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
           })
         )}
         <div ref={bottomRef} className="h-4" />
+          </div>
         </div>
       </div>
 
@@ -1746,7 +1830,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
       )}
 
       {/* Input Area */}
-      <div className="p-4 bg-transparent z-10 w-full shrink-0 border-t border-[#27272a]">
+      <div className="p-4 bg-transparent shrink-0 border-t border-[#27272a]">
         <div className="flex items-end gap-2 bg-[#18181b] border border-[#27272a] rounded-2xl p-2 focus-within:border-neutral-500 focus-within:shadow-sm focus-within:shadow-black transition-all">
           <input
             type="file"

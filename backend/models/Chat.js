@@ -41,6 +41,10 @@ const chatSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  theme: {
+    type: String,
+    default: null
+  },
   lastMessage: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'
