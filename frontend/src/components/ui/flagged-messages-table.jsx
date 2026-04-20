@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown, Filter, Search, AlertTriangle, Shield, ShieldOff, Trash2, UserX, Flag, Ban } from 'lucide-react';
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+
 const REASON_COLOR = {
   'Cyberbullying': 'bg-red-500/15 text-red-400 border-red-500/30',
   'Harassment': 'bg-orange-500/15 text-orange-400 border-orange-500/30',
@@ -217,7 +219,7 @@ export function FlaggedMessagesTable() {
 
   const fetchFlags = useCallback(() => {
     setLoading(true);
-    fetch('http://localhost:5000/api/admin/flagged-messages', { headers: auth() })
+    fetch(`${API_BASE_URL}/admin/flagged-messages`, { headers: auth() })
       .then(async r => {
         if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.message || `HTTP ${r.status}`); }
         return r.json();
@@ -239,10 +241,10 @@ export function FlaggedMessagesTable() {
 
     try {
       const endpoints = {
-        dismiss: [`http://localhost:5000/api/admin/messages/${id}/approve`, 'POST', { action: 'dismiss' }],
-        warn:    [`http://localhost:5000/api/admin/users/${flag.sender?._id}/warn`, 'POST', { reason: flag.reason, messageId: flag.messageId }],
-        remove:  [`http://localhost:5000/api/admin/messages/${flag.messageId}/remove`, 'DELETE', null],
-        ban:     [`http://localhost:5000/api/admin/users/${flag.sender?._id}/ban`, 'POST', { reason: flag.reason }],
+        dismiss: [`${API_BASE_URL}/admin/messages/${id}/approve`, 'POST', { action: 'dismiss' }],
+        warn:    [`${API_BASE_URL}/admin/users/${flag.sender?._id}/warn`, 'POST', { reason: flag.reason, messageId: flag.messageId }],
+        remove:  [`${API_BASE_URL}/admin/messages/${flag.messageId}/remove`, 'DELETE', null],
+        ban:     [`${API_BASE_URL}/admin/users/${flag.sender?._id}/ban`, 'POST', { reason: flag.reason }],
       };
       const [url, method, body] = endpoints[action];
       const res = await fetch(url, { method, headers: auth(), body: body ? JSON.stringify(body) : undefined });

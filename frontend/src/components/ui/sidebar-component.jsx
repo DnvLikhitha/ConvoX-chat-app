@@ -55,6 +55,8 @@ import {
   SettingsAdjust as ToggleIcon,
   CircleOutline,
 } from "@carbon/icons-react";
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
 /** ======================= Local SVG paths (inline) ======================= */
 const svgPaths = {
   p10dcabc0: "M8 11L3 6.00001L3.7 5.30001L8 9.60001L12.3 5.30001L13 6.00001L8 11Z",
@@ -136,6 +138,7 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useAuth();
+  const { socket, connected } = useSocket();
   React.useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -148,7 +151,7 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
           setLoading(false);
           return;
         }
-        const response = await fetch("http://localhost:5000/api/users/friends", {
+        const response = await fetch(`${API_BASE_URL}/users/friends`, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -176,6 +179,43 @@ function UsersList({ searchQuery, activeSection, isCollapsed, selectedUser, onSe
       fetchUsers();
     }
   }, [activeSection]);
+
+  React.useEffect(() => {
+    if (!socket || !connected || activeSection !== "chats") return;
+
+    const normalizeId = (id) => String(id || "");
+
+    const handleOnlineUsers = (ids = []) => {
+      const onlineSet = new Set(ids.map(normalizeId));
+      setUsers((prev) =>
+        prev.map((u) => {
+          const uid = normalizeId(u._id || u.id);
+          if (!uid) return u;
+          return { ...u, status: onlineSet.has(uid) ? "online" : "offline" };
+        })
+      );
+    };
+
+    const handleUserStatusChanged = ({ userId, status }) => {
+      const changedId = normalizeId(userId);
+      if (!changedId) return;
+      setUsers((prev) =>
+        prev.map((u) => {
+          const uid = normalizeId(u._id || u.id);
+          return uid === changedId ? { ...u, status } : u;
+        })
+      );
+    };
+
+    socket.on("online_users", handleOnlineUsers);
+    socket.on("user_status_changed", handleUserStatusChanged);
+
+    return () => {
+      socket.off("online_users", handleOnlineUsers);
+      socket.off("user_status_changed", handleUserStatusChanged);
+    };
+  }, [socket, connected, activeSection]);
+
   const filteredUsers = users.filter(user =>
     user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -290,7 +330,7 @@ function GroupsList({ searchQuery, activeSection, isCollapsed, selectedGroup, on
           return;
         }
         
-        const response = await fetch("http://localhost:5000/api/chats", {
+        const response = await fetch(`${API_BASE_URL}/chats`, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -645,7 +685,7 @@ function DetailSidebar({ activeSection, isCollapsed, onCollapseChange, onSetting
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    navigate("/");
   };
   const content = getSidebarContent(activeSection, isAdmin);
   const toggleExpanded = (itemKey) => {
@@ -1050,7 +1090,7 @@ function AdminPanelPage() {
     const fetchFlaggedMessages = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:5000/api/admin/flagged-messages", {
+        const response = await fetch(`${API_BASE_URL}/admin/flagged-messages`, {
           headers: {
             "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
           },
@@ -1073,7 +1113,7 @@ function AdminPanelPage() {
   const handleApproove = async (messageId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
-      const response = await fetch(`http://localhost:5000/api/admin/messages/${messageId}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/admin/messages/${messageId}/approve`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
@@ -1092,7 +1132,7 @@ function AdminPanelPage() {
   const handleRemove = async (messageId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
-      const response = await fetch(`http://localhost:5000/api/admin/messages/${messageId}/remove`, {
+      const response = await fetch(`${API_BASE_URL}/admin/messages/${messageId}/remove`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
@@ -1111,7 +1151,7 @@ function AdminPanelPage() {
   const handleWarnUser = async (messageId, userId) => {
     try {
       setActionLoading(prev => ({ ...prev, [messageId]: true }));
-      const response = await fetch(`http://localhost:5000/api/admin/users/${userId}/warn`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/warn`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
@@ -1139,7 +1179,7 @@ function AdminPanelPage() {
 
     try {
       setActionLoading(prev => ({ ...prev, [banDialog.userId]: true }));
-      const response = await fetch(`http://localhost:5000/api/admin/users/${banDialog.userId}/ban`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${banDialog.userId}/ban`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("chat_token")}`,
@@ -1293,7 +1333,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     try {
       const token = localStorage.getItem('chat_token');
       const enumReason = REASON_MAP[flagReason] || 'other';
-      const res = await fetch(`http://localhost:5000/api/chats/messages/${flagDialog.messageId}/flag`, {
+      const res = await fetch(`${API_BASE_URL}/chats/messages/${flagDialog.messageId}/flag`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: enumReason, description: flagReason }),
@@ -1318,7 +1358,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     try {
       if (!activeChatId) return;
       const token = localStorage.getItem("chat_token");
-      await fetch(`http://localhost:5000/api/chats/${activeChatId}/theme`, {
+      await fetch(`${API_BASE_URL}/chats/${activeChatId}/theme`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ theme })
@@ -1343,7 +1383,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
         setLoading(true);
         const token = localStorage.getItem("chat_token");
         const userId = selectedUser._id || selectedUser.id;
-        const response = await fetch(`http://localhost:5000/api/chats/user/${userId}/messages`, {
+        const response = await fetch(`${API_BASE_URL}/chats/user/${userId}/messages`, {
           headers: { "Authorization": `Bearer ${token}` },
         });
         if (response.ok) {
@@ -1375,12 +1415,48 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
   React.useEffect(() => {
     if (!socket || !connected || !activeChatId) return;
     socket.emit('join_room', activeChatId);
+    socket.emit('messages_delivered', { chatId: activeChatId });
     // Mark messages as read when user opens the chat
     socket.emit('messages_read', { chatId: activeChatId });
     
     const onMsg = (msg) => {
       if (msg.chatId !== activeChatId) return;
-      setMessages(prev => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
+
+      const currentUserId = user?._id || user?.id;
+      const msgSenderId = typeof msg.sender === 'object' ? (msg.sender?._id || msg.sender?.id) : msg.sender;
+      const isMine = currentUserId && msgSenderId && String(msgSenderId) === String(currentUserId);
+
+      setMessages(prev => {
+        const alreadyExists = prev.some(
+          (m) =>
+            (m._id && msg._id && m._id === msg._id) ||
+            (m.id && msg.id && m.id === msg.id) ||
+            (m.messageId && msg.messageId && m.messageId === msg.messageId)
+        );
+
+        if (alreadyExists) return prev;
+
+        const incomingText = (msg.content || msg.messageText || '').trim();
+        const optimisticIdx = prev.findIndex((m) => {
+          const isOptimistic = String(m._id || '').startsWith('optimistic-');
+          const sameText = (m.content || m.messageText || '').trim() === incomingText;
+          const isOptimisticMine = m.isCurrentUser === true;
+          return isOptimistic && isOptimisticMine && sameText;
+        });
+
+        if (optimisticIdx !== -1) {
+          const next = [...prev];
+          next[optimisticIdx] = { ...msg, isCurrentUser: true };
+          return next;
+        }
+
+        return [...prev, isMine ? { ...msg, isCurrentUser: true } : msg];
+      });
+
+      if (!isMine) {
+        socket.emit('messages_delivered', { chatId: activeChatId });
+        socket.emit('messages_read', { chatId: activeChatId });
+      }
     };
     const onThemeUpdate = ({ chatId, theme }) => {
       if (chatId === activeChatId) setChatBackground(theme || null);
@@ -1404,7 +1480,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     socket.on('messages_status_update', onStatusUpdate);
     socket.on('message_reaction', onReaction);
     return () => { socket.off('new_message', onMsg); socket.off('theme_update', onThemeUpdate); socket.off('messages_status_update', onStatusUpdate); socket.off('message_reaction', onReaction); };
-  }, [socket, connected, activeChatId]);
+  }, [socket, connected, activeChatId, user?._id, user?.id]);
 
   // Auto-scroll
   React.useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -1428,7 +1504,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     try {
       const token = localStorage.getItem("chat_token");
       const userId = selectedUser._id || selectedUser.id;
-      const response = await fetch(`http://localhost:5000/api/chats/user/${userId}/messages`, {
+      const response = await fetch(`${API_BASE_URL}/chats/user/${userId}/messages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -1438,9 +1514,25 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
       });
       if (response.ok) {
         const data = await response.json();
-        const serverMsg = { ...data.data, status: data.data?.status || 'sent' };
-        // Replace optimistic message with real server message
-        setMessages(prev => prev.map(m => m._id === optimisticMsg._id ? serverMsg : m));
+        const serverMsg = { ...data.data, status: data.data?.status || 'sent', isCurrentUser: true };
+        // Replace optimistic message with the server message while avoiding duplicates from socket echo.
+        setMessages(prev => {
+          const withoutOptimistic = prev.filter(m => m._id !== optimisticMsg._id);
+          const existingIndex = withoutOptimistic.findIndex(
+            (m) =>
+              (m._id && serverMsg._id && m._id === serverMsg._id) ||
+              (m.id && serverMsg.id && m.id === serverMsg.id) ||
+              (m.messageId && serverMsg.messageId && m.messageId === serverMsg.messageId)
+          );
+
+          if (existingIndex !== -1) {
+            const next = [...withoutOptimistic];
+            next[existingIndex] = { ...next[existingIndex], ...serverMsg };
+            return next;
+          }
+
+          return [...withoutOptimistic, serverMsg];
+        });
         if (serverMsg.chatId && !activeChatId) setActiveChatId(serverMsg.chatId);
       } else {
         // Remove optimistic message on failure
@@ -1457,7 +1549,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
     if (!messageId || messageId.toString().startsWith('optimistic')) return;
     try {
       const token = localStorage.getItem("chat_token");
-      const res = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/react`, {
+      const res = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/react`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ emoji })
@@ -1477,7 +1569,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
       const userId = selectedUser._id || selectedUser.id;
       const formData = new FormData();
       formData.append('file', file);
-      const response = await fetch(`http://localhost:5000/api/chats/user/${userId}/upload`, {
+      const response = await fetch(`${API_BASE_URL}/chats/user/${userId}/upload`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -1690,8 +1782,8 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                         <span className="text-xs text-neutral-500 italic">This message was removed by an admin</span>
                       </div>
                     ) : isImage ? (
-                      <div onClick={() => setFullscreenImage(`http://localhost:5000${msg.fileUrl}`)} className={`cursor-pointer hover:opacity-90 transition rounded-xl overflow-hidden border ${isMe ? 'border-neutral-700' : 'border-[#27272a]'}`}>
-                        <img src={`http://localhost:5000${msg.fileUrl}`} alt={msg.fileName} className="max-w-xs object-cover" />
+                      <div onClick={() => setFullscreenImage(resolveUrl(msg.fileUrl))} className={`cursor-pointer hover:opacity-90 transition rounded-xl overflow-hidden border ${isMe ? 'border-neutral-700' : 'border-[#27272a]'}`}>
+                        <img src={resolveUrl(msg.fileUrl)} alt={msg.fileName} className="max-w-xs object-cover" />
                       </div>
                     ) : (
                       <div 
@@ -1707,7 +1799,7 @@ function ChatSection({ selectedUser, onUserContextMenu }) {
                       }`}>
                         {msg.messageType === 'file' ? (
                           <a 
-                            href={`http://localhost:5000${msg.fileUrl}`} 
+                            href={resolveUrl(msg.fileUrl)} 
                             download={msg.fileName}
                             className={`flex items-center gap-3 font-medium hover:underline ${isMe ? 'text-black/80' : 'text-blue-400'}`}
                           >
@@ -2018,7 +2110,7 @@ function TwoLevelSidebar() {
     // Globally register and join all chats to get unread messages
     const token = localStorage.getItem("chat_token");
     if (token) {
-      fetch("http://localhost:5000/api/chats", {
+      fetch(`${API_BASE_URL}/chats`, {
         headers: { "Authorization": `Bearer ${token}` }
       })
       .then(res => res.json())

@@ -10,6 +10,8 @@ import halloweenThemeBg from '../../assets/halloween theme.jpg'
 import loveThemeBg from '../../assets/love theme.jpg'
 import rainThemeBg from '../../assets/rain theme.jpg'
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '')
+
 function initials(name) {
   if (!name) return '?'
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')
@@ -183,7 +185,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
     if (!messageId || messageId.toString().startsWith('optimistic')) return;
     try {
       const token = localStorage.getItem("chat_token");
-      const res = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/react`, {
+      const res = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/react`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ emoji })
@@ -243,7 +245,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
     try {
       const token = localStorage.getItem('chat_token');
       const enumReason = REASON_MAP[flagReason] || 'other';
-      const res = await fetch(`http://localhost:5000/api/chats/messages/${flagDialog.messageId}/flag`, {
+      const res = await fetch(`${API_BASE_URL}/chats/messages/${flagDialog.messageId}/flag`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: enumReason, description: flagReason }),
@@ -270,7 +272,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
       const token = localStorage.getItem("chat_token");
       const formData = new FormData();
       formData.append('file', file);
-      const response = await fetch(`http://localhost:5000/api/chats/${chatId}/upload`, {
+      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/upload`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -293,7 +295,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
   const handleThemeChange = async (theme) => {
     try {
       const token = localStorage.getItem("chat_token");
-      await fetch(`http://localhost:5000/api/chats/${chatId}/theme`, {
+      await fetch(`${API_BASE_URL}/chats/${chatId}/theme`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ theme })
@@ -462,8 +464,8 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                     </div>
                   ) : isImage ? (
                     <div className={`rounded-xl overflow-hidden border ${isOwn ? 'border-neutral-700' : 'border-[#27272a]'}`}>
-                      <a href={`http://localhost:5000${msg.fileUrl}`} target="_blank" rel="noreferrer">
-                         <img src={`http://localhost:5000${msg.fileUrl}`} alt={msg.fileName} className="max-w-xs object-cover" />
+                       <a href={resolveUrl(msg.fileUrl)} target="_blank" rel="noreferrer">
+                         <img src={resolveUrl(msg.fileUrl)} alt={msg.fileName} className="max-w-xs object-cover" />
                       </a>
                     </div>
                   ) : (
@@ -480,7 +482,7 @@ function GroupChatPanel({ chatId, user, socket, connected }) {
                     >
                       {msg.messageType === 'file' ? (
                         <a 
-                          href={`http://localhost:5000${msg.fileUrl}`} 
+                          href={resolveUrl(msg.fileUrl)} 
                           download={msg.fileName}
                           className={`flex items-center gap-3 font-medium hover:underline ${isOwn ? 'text-black/80' : 'text-blue-400'}`}
                         >

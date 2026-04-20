@@ -6,8 +6,11 @@
  * @param {string} path - The image or media path.
  * @returns {string} The fully resolved URL.
  */
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+const BACKEND_ORIGIN = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL;
+
 export function resolveUrl(path) {
   if (!path) return path;
   if (path.startsWith('http') || path.startsWith('blob:')) return path;
-  return `http://localhost:5000${path.startsWith('/') ? '' : '/'}${path}`;
+  return `${BACKEND_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
 }
