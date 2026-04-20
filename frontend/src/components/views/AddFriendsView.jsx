@@ -185,7 +185,7 @@ export default function AddFriendsView() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header & Tabs */}
-      <div className="sticky top-0 bg-[#09090b] z-10 px-0 py-4 border-b border-[#27272a] mb-6">
+      <div className="sticky top-0 bg-transparent z-10 px-0 py-4 border-b border-[#27272a] mb-6">
         <h1 className="text-2xl font-bold text-white mb-6">Friends</h1>
         
         <div className="flex gap-4">

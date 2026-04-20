@@ -263,7 +263,7 @@ function DangerSection() {
       await usersApi.deleteAccount()
       toast.success('Account permanently deleted')
       logout()
-      navigate('/login')
+      navigate('/')
     } catch {
       toast.error('Failed to delete account')
     } finally {

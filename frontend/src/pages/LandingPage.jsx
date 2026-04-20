@@ -36,7 +36,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen text-[#e6e6e6] selection:bg-white selection:text-black overflow-hidden relative bg-[#050505]">
+    <div className="min-h-screen text-[#e6e6e6] selection:bg-white selection:text-black overflow-x-hidden relative bg-[#050505]">
       
       {/* Subtle Background Glow to blend with Robot */}
       <div className="fixed inset-0 pointer-events-none z-0">

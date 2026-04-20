@@ -420,6 +420,13 @@ export default function ChatPage() {
       
       if (isForActiveChat) {
         setMessages(p => p.some(m => m._id === msg._id || m.messageId === msg.messageId) ? p : [...p, msg])
+
+        const senderId = msg.sender?._id || msg.sender
+        const currentUserId = user?.id || user?._id
+        if (senderId && currentUserId && String(senderId) !== String(currentUserId)) {
+          socket.emit('messages_delivered', { chatId: msg.chatId })
+          socket.emit('messages_read', { chatId: msg.chatId })
+        }
       }
       
       setChats(p => p.map(c => {
@@ -464,6 +471,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (socket && connected && activeChat) {
       socket.emit('join_room', activeChat.chatId)
+      socket.emit('messages_delivered', { chatId: activeChat.chatId })
       // Mark messages as read when user opens the chat
       socket.emit('messages_read', { chatId: activeChat.chatId })
     }

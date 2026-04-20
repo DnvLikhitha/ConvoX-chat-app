@@ -24,7 +24,7 @@ export default function AppLayout({ children }) {
 
   function handleLogout() {
     logout()
-    navigate('/login')
+    navigate('/')
   }
 
   return (
