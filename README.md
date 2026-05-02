@@ -7,6 +7,10 @@
 
 ConvoX is a high-performance, monochromatic real-time messaging application engineered for technical users who value speed, privacy, and minimalist design. It transitions away from traditional "glassmorphism" toward a refined, technical aesthetic characterized by absolute blacks, neutral greys, and deep ambient accents.
 
+**Demo Video Link:** https://drive.google.com/file/d/1eRjQmadB1ScrPGLWX3bOvkDnznukxPFw/view?usp=sharing
+
+**Code explanation link:** https://drive.google.com/file/d/1H1FmAcLWJEKARE5nUYJHYHWS3MQqg0jc/view?usp=drivesdk
+
 ## 🌟 Core Modules
 
 ### 1. Real-Time Messaging Engine
